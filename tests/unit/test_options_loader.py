@@ -67,7 +67,11 @@ def _make_client(options_dir: Path) -> TickrakeClient:
         options_dir=options_dir,
     )
     # Patch boto3 so no real connections are made
-    with patch("boto3.client", return_value=MagicMock()):
+    mock_s3 = MagicMock()
+    mock_session = MagicMock()
+    mock_session.client.return_value = mock_s3
+    with patch("boto3.Session", return_value=mock_session), \
+         patch("boto3.client", return_value=mock_s3):
         return TickrakeClient(cfg)
 
 

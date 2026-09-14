@@ -9,6 +9,7 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 import boto3
+import botocore.session
 import pandas as pd
 from botocore.config import Config
 from mypy_boto3_s3 import S3Client
@@ -19,11 +20,14 @@ from options_monitor.tickrake.config import TickrakeConfig
 class IntradayClient:
     def __init__(self, cfg: TickrakeConfig) -> None:
         self._cfg = cfg
-        self._s3: S3Client = boto3.client(
+        # Use an isolated botocore session so ~/.aws credentials are never
+        # picked up for MinIO — the explicit key/secret are the only credentials.
+        session = botocore.session.get_session()
+        session.set_credentials(cfg.minio_access_key, cfg.minio_secret_key)
+        self._s3: S3Client = boto3.Session(botocore_session=session).client(
             "s3",
             endpoint_url=cfg.minio_endpoint,
-            aws_access_key_id=cfg.minio_access_key,
-            aws_secret_access_key=cfg.minio_secret_key,
+            region_name="us-east-1",
             config=Config(signature_version="s3v4"),
         )
 
