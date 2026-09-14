@@ -11,8 +11,6 @@ from urllib.parse import urlparse
 import boto3
 import pandas as pd
 from botocore.config import Config
-from botocore.credentials import Credentials
-from botocore.session import Session as BotocoreSession
 from mypy_boto3_s3 import S3Client
 
 from options_monitor.tickrake.config import TickrakeConfig
@@ -21,16 +19,11 @@ from options_monitor.tickrake.config import TickrakeConfig
 class IntradayClient:
     def __init__(self, cfg: TickrakeConfig) -> None:
         self._cfg = cfg
-        # Build a clean botocore session with no credential providers so that
-        # AWS_PROFILE / ~/.aws never interfere with MinIO's own key/secret.
-        bc_session = BotocoreSession()
-        bc_session.register_component("credential_provider", None)
-        self._s3: S3Client = boto3.Session(botocore_session=bc_session).client(
+        self._s3: S3Client = boto3.client(
             "s3",
             endpoint_url=cfg.minio_endpoint,
             aws_access_key_id=cfg.minio_access_key,
             aws_secret_access_key=cfg.minio_secret_key,
-            region_name="us-east-1",
             config=Config(signature_version="s3v4"),
         )
 
