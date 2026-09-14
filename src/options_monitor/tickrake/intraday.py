@@ -11,7 +11,10 @@ from urllib.parse import urlparse
 import boto3
 import pandas as pd
 from botocore.config import Config
-from mypy_boto3_s3 import S3Client
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 from options_monitor.tickrake.config import TickrakeConfig
 

@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 import boto3
-from mypy_boto3_s3 import S3Client
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 from options_monitor.tickrake.config import TickrakeConfig
 
