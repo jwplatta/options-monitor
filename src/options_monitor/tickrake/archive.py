@@ -5,22 +5,20 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import boto3
+from mypy_boto3_s3 import S3Client
 
 from options_monitor.tickrake.config import TickrakeConfig
-
-if TYPE_CHECKING:
-    from mypy_boto3_s3 import S3Client
 
 
 class ArchiveClient:
     def __init__(self, cfg: TickrakeConfig) -> None:
         self._cfg = cfg
         self._options_dir = cfg.options_dir
-        self._s3: S3Client = boto3.client(  # type: ignore[assignment]
+        self._s3: S3Client = boto3.client(
             "s3",
             region_name=cfg.s3_region,
         )
@@ -30,7 +28,7 @@ class ArchiveClient:
         path = self._options_dir / f"{root}.json"
         if not path.exists():
             return {}
-        return json.loads(path.read_text())  # type: ignore[return-value]
+        return cast(dict[str, Any], json.loads(path.read_text()))
 
     def get_parquet_path(self, root: str, sample_date: date) -> Path | None:
         """Return the local parquet path for sample_date, downloading from S3 if needed."""

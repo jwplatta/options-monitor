@@ -5,23 +5,21 @@ from __future__ import annotations
 import json
 from datetime import date
 from io import StringIO
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import boto3
 import pandas as pd
 from botocore.config import Config
+from mypy_boto3_s3 import S3Client
 
 from options_monitor.tickrake.config import TickrakeConfig
-
-if TYPE_CHECKING:
-    from mypy_boto3_s3 import S3Client
 
 
 class IntradayClient:
     def __init__(self, cfg: TickrakeConfig) -> None:
         self._cfg = cfg
-        self._s3: S3Client = boto3.client(  # type: ignore[assignment]
+        self._s3: S3Client = boto3.client(
             "s3",
             endpoint_url=cfg.minio_endpoint,
             aws_access_key_id=cfg.minio_access_key,
@@ -33,14 +31,14 @@ class IntradayClient:
         """Fetch the intraday index JSON for root from MinIO."""
         key = f"intraday/{provider}/{root}.json"
         resp = self._s3.get_object(Bucket=self._cfg.minio_bucket, Key=key)
-        return json.loads(resp["Body"].read())  # type: ignore[arg-type]
+        return cast(dict[str, Any], json.loads(resp["Body"].read()))
 
     def fetch_csv(self, uri: str, dtypes: dict[str, Any]) -> pd.DataFrame:
         """Fetch an option chain CSV from a s3:// URI and return a typed DataFrame."""
         parsed = urlparse(uri)
         key = parsed.path.lstrip("/")
         resp = self._s3.get_object(Bucket=self._cfg.minio_bucket, Key=key)
-        content = resp["Body"].read().decode("utf-8")  # type: ignore[union-attr]
+        content = resp["Body"].read().decode("utf-8")
         df = pd.read_csv(StringIO(content), dtype=dtypes)  # type: ignore[arg-type]
         df["expiration_date"] = pd.to_datetime(df["expiration_date"])
         return df
