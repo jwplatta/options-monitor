@@ -17,26 +17,20 @@ class TickrakeConfig:
     minio_secret_key: str
     s3_bucket: str
     s3_region: str
-    s3_access_key: str
-    s3_secret_key: str
     # Provider-specific local options dir, e.g. ~/.tickrake/data/options/schwab
     options_dir: Path
 
     @classmethod
     def from_env(cls, options_dir: Path | None = None) -> TickrakeConfig:
         resolved_dir = options_dir or Path(
-            os.environ.get("OPTIONS_MONITOR_OPTIONS_DIR", str(_DEFAULTS_OPTIONS))
+            os.environ.get("OPTIONS_DIR", str(_DEFAULTS_OPTIONS))
         )
         return cls(
-            minio_endpoint=os.environ.get(
-                "OPTIONS_MONITOR_MINIO_ENDPOINT", "http://localhost:9000"
-            ),
-            minio_bucket=os.environ.get("OPTIONS_MONITOR_MINIO_BUCKET", "tickrake"),
-            minio_access_key=os.environ.get("OPTIONS_MONITOR_MINIO_ACCESS_KEY", ""),
-            minio_secret_key=os.environ.get("OPTIONS_MONITOR_MINIO_SECRET_KEY", ""),
-            s3_bucket=os.environ.get("OPTIONS_MONITOR_S3_BUCKET", ""),
-            s3_region=os.environ.get("OPTIONS_MONITOR_S3_REGION", "us-east-1"),
-            s3_access_key=os.environ.get("OPTIONS_MONITOR_S3_ACCESS_KEY", ""),
-            s3_secret_key=os.environ.get("OPTIONS_MONITOR_S3_SECRET_KEY", ""),
+            minio_endpoint=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
+            minio_bucket=os.environ.get("MINIO_BUCKET", "tickrake"),
+            minio_access_key=os.environ.get("MINIO_ACCESS_KEY", ""),
+            minio_secret_key=os.environ.get("MINIO_SECRET_KEY", ""),
+            s3_bucket=os.environ.get("S3_BUCKET", ""),
+            s3_region=os.environ.get("S3_REGION", "us-east-1"),
             options_dir=resolved_dir,
         )

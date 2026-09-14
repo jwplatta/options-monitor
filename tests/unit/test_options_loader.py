@@ -64,8 +64,6 @@ def _make_client(options_dir: Path) -> TickrakeClient:
         minio_secret_key="test",
         s3_bucket="tickrake",
         s3_region="us-east-1",
-        s3_access_key="test",
-        s3_secret_key="test",
         options_dir=options_dir,
     )
     # Patch boto3 so no real connections are made
@@ -485,8 +483,6 @@ def test_parquet_path_for_date_missing_returns_none() -> None:
         minio_secret_key="",
         s3_bucket="",
         s3_region="",
-        s3_access_key="",
-        s3_secret_key="",
         options_dir=Path("/nonexistent/path"),
     )
     with patch("boto3.client", return_value=MagicMock()):

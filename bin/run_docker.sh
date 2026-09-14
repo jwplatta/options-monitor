@@ -15,4 +15,4 @@ export MINIO_BUCKET="${MINIO_BUCKET:-tickrake-intraday}"
 export MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
 export MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
 
-exec uv run streamlit run src/options_monitor/app.py
+exec docker compose up --build

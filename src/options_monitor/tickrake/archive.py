@@ -23,8 +23,6 @@ class ArchiveClient:
         self._s3: S3Client = boto3.client(  # type: ignore[assignment]
             "s3",
             region_name=cfg.s3_region,
-            aws_access_key_id=cfg.s3_access_key,
-            aws_secret_access_key=cfg.s3_secret_key,
         )
 
     def get_root_index(self, root: str) -> dict[str, Any]:
