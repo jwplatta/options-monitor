@@ -274,7 +274,6 @@ def _render_intraday_flow_view(
         all_expiry_snapshots = find_all_snapshots_for_expiry(
             symbol,
             expiry=selected_exp,
-            data_dir=options_dir,
         )
 
     col_ct, col_wt = st.columns([3, 1])
@@ -350,7 +349,7 @@ def render_flow_tab(options_dir: Path) -> None:
 
     with col_ctrl:
         # Sample date selection.
-        sample_dates = list_snapshot_dates(_SYMBOL, data_dir=options_dir)
+        sample_dates = list_snapshot_dates(_SYMBOL)
         if not sample_dates:
             st.error("No SPXW snapshots found.")
             return
@@ -364,7 +363,7 @@ def render_flow_tab(options_dir: Path) -> None:
         )
 
         # Expiration selection — default to 0DTE if available.
-        all_expiries = list_expirations(_SYMBOL, data_dir=options_dir)
+        all_expiries = list_expirations(_SYMBOL)
         # Filter to expirations that have snapshots on the chosen sample date.
         available_expiries = [e for e in all_expiries if e >= sample_date]
         if not available_expiries:
@@ -442,7 +441,6 @@ def render_flow_tab(options_dir: Path) -> None:
             _SYMBOL,
             expiry=selected_exp,
             sample_date=sample_date,
-            data_dir=options_dir,
         )
         if not snapshots:
             with col_chart:

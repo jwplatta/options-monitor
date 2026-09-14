@@ -82,7 +82,6 @@ def render_fixed_strike_tab(options_dir: Path = OPTIONS_DIR) -> None:
         start_date=date.today(),
         days_out=fsv_days_out,
         include_0dte=fsv_include_0dte,
-        data_dir=options_dir,
     )
 
     if not snapshot_paths:

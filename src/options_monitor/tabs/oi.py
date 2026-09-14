@@ -82,7 +82,6 @@ def render_oi_tab(options_dir: Path = OPTIONS_DIR) -> None:
         start_date=date.today(),
         days_out=oi_days_out,
         include_0dte=oi_include_0dte,
-        data_dir=options_dir,
     )
 
     if not snapshot_paths:

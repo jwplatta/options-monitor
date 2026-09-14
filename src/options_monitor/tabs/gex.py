@@ -77,7 +77,6 @@ def _load_window_snapshot_data(
         start_date=start_date,
         days_out=days_out,
         include_0dte=include_0dte,
-        data_dir=options_dir,
     )
     if not snapshots:
         return None
@@ -100,7 +99,6 @@ def _load_single_expiry_snapshot_data(
         start_date=selected_exp,
         days_out=0,
         include_0dte=True,
-        data_dir=options_dir,
     )
     if not single_snapshots:
         return None
@@ -110,7 +108,7 @@ def _load_single_expiry_snapshot_data(
 
 
 def _select_single_expiry(symbol: str, today: date, options_dir: Path) -> str | None:
-    available_exps_desc = sorted(list_expirations(symbol, data_dir=options_dir), reverse=True)
+    available_exps_desc = sorted(list_expirations(symbol), reverse=True)
     if not available_exps_desc:
         return None
 
@@ -210,7 +208,7 @@ def _render_gex_history_view(
     range_pct: float,
     options_dir: Path,
 ) -> None:
-    sample_dates = list_snapshot_dates(symbol, data_dir=options_dir)
+    sample_dates = list_snapshot_dates(symbol)
     if not sample_dates:
         st.warning(f"No historical {symbol} options snapshots found.")
         return
@@ -243,7 +241,6 @@ def _render_gex_history_view(
         sample_date=selected_sample_date,
         days_out=days_out,
         include_0dte=include_0dte,
-        data_dir=options_dir,
     )
     if not expiries:
         st.warning(
@@ -431,7 +428,7 @@ def _render_history_view(
     range_pct: float,
     options_dir: Path,
 ) -> None:
-    sample_dates = list_snapshot_dates_for_expiry(symbol, selected_exp, data_dir=options_dir)
+    sample_dates = list_snapshot_dates_for_expiry(symbol, selected_exp)
     if not sample_dates:
         st.warning(f"No {symbol} options snapshots found for {selected_exp.isoformat()}.")
         return
