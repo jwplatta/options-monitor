@@ -2,7 +2,7 @@ services:
   options-monitor:
     build: .
     ports:
-      - "${PORT:-8502}:8501"
+      - "${PORT:-8503}:8501"
     volumes:
       - "${TICKRAKE_HOME:-$HOME/.tickrake}:/tickrake:ro"
       - "${HOME}/.aws:/root/.aws:ro"
