@@ -1,6 +1,6 @@
 # Options Monitor
 
-Options-data and market-monitoring dashboard built with Streamlit.
+Options-data and market-monitoring dashboard built with Streamlit. Displays GEX, flow tape, open interest, volatility skew, and fixed-strike vol surfaces for SPX/SPXW options.
 
 ## Stack
 
@@ -16,9 +16,10 @@ Options-data and market-monitoring dashboard built with Streamlit.
 | Data | Source |
 |---|---|
 | Intraday option chains (latest snapshot) | MinIO via S3 API — `intraday/schwab/{ROOT}.json` index + per-expiry CSVs |
-| Intraday time-series (Flow/History) | Local timestamped CSVs written by tickrake jobs (`~/.tickrake/data/options/schwab/`) |
-| Historical option chains | Local parquet cache (`~/.tickrake/…`); downloaded from S3 on cache miss |
+| Intraday time-series (Flow / History tabs) | Local timestamped CSVs written by tickrake jobs (`~/.tickrake/data/options/schwab/`) |
+| Historical option chains | Local parquet cache; downloaded from S3 on cache miss |
 | Historical index | Local `ROOT.json` written by the tickrake reconciler at 16:00 weekdays |
+| Candles / price | Separate candles data path (unchanged) |
 
 All tickrake I/O is wrapped in `src/options_monitor/tickrake/` — a clean extraction boundary designed for eventual packaging as a standalone `TickrakeClient`.
 
@@ -29,8 +30,6 @@ Copy `.env.example` to `.env` and fill in values:
 ```bash
 cp .env.example .env
 ```
-
-Key variables:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -76,18 +75,65 @@ uv run pytest
 ```text
 .
 ├── bin/
-│   ├── run_dev.sh          # start dev server (sources .env)
-│   └── run_docker.sh       # build and run Docker container
-├── docs/
+│   ├── run_dev.sh              # start dev server (sources .env)
+│   └── run_docker.sh           # build and run Docker container
 ├── src/options_monitor/
-│   ├── tickrake/           # MinIO + S3 + filesystem data access
-│   │   ├── client.py       # TickrakeClient facade
-│   │   ├── intraday.py     # MinIO intraday index + CSV fetching
-│   │   ├── archive.py      # S3 historical parquet + local cache
-│   │   ├── filesystem.py   # local timestamped CSV scanning
-│   │   └── config.py       # connection config from env vars
+│   ├── app.py                  # Streamlit entrypoint, tab routing
+│   ├── config.py               # app-level path config (TICKRAKE_HOME, data dirs)
+│   ├── utils.py
+│   ├── tickrake/               # MinIO + S3 + filesystem data access
+│   │   ├── client.py           # TickrakeClient facade
+│   │   ├── intraday.py         # MinIO intraday index + CSV fetching
+│   │   ├── archive.py          # S3 historical parquet + local cache
+│   │   ├── filesystem.py       # local timestamped CSV scanning
+│   │   └── config.py           # connection config from env vars
 │   ├── data/
-│   ├── tabs/
-│   └── app.py
+│   │   ├── options.py          # options snapshot loading and discovery
+│   │   └── candles.py          # candle/price data access
+│   ├── calc/                   # pure computation, no I/O
+│   │   ├── gex.py              # gamma exposure
+│   │   ├── gex_term_structure.py
+│   │   ├── flow.py             # order flow aggregation
+│   │   ├── flow_profile.py
+│   │   ├── flow_tape.py
+│   │   ├── fixed_strike_vol.py # fixed-strike volatility surface
+│   │   ├── vol.py
+│   │   ├── iv_zscore.py
+│   │   ├── oi.py               # open interest
+│   │   ├── oi_zscore.py
+│   │   ├── spread.py
+│   │   ├── maker_taker.py
+│   │   ├── ma.py
+│   │   └── rv_acceleration.py  # (via charts)
+│   ├── charts/                 # Plotly figure builders
+│   │   ├── gex_aggregate.py
+│   │   ├── gex_heatmap.py
+│   │   ├── gex_single.py
+│   │   ├── gex_term_structure.py
+│   │   ├── flow_heatmap.py
+│   │   ├── flow_profile.py
+│   │   ├── flow_tape.py
+│   │   ├── vol_skew.py
+│   │   ├── vol_spread.py
+│   │   ├── spread_heatmap.py
+│   │   ├── skew_indicators.py
+│   │   ├── maker_taker_bubble.py
+│   │   ├── price.py
+│   │   ├── spx_chart.py
+│   │   ├── es_chart.py
+│   │   ├── vix_term.py
+│   │   ├── volume.py
+│   │   └── vol_of_vol.py
+│   └── tabs/                   # Streamlit tab renderers
+│       ├── gex.py
+│       ├── flow.py
+│       ├── oi.py
+│       ├── history.py
+│       └── vol/
+│           ├── fixed_strike.py
+│           ├── overview.py
+│           └── spx_rv.py
 └── tests/
+    ├── unit/
+    └── integration/
 ```
