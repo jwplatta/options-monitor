@@ -8,7 +8,7 @@ services:
       - "${HOME}/.aws:/root/.aws:ro"
     environment:
       TICKRAKE_HOME: /tickrake
-      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://localhost:9000}"
+      MINIO_ENDPOINT: "http://host.docker.internal:9000"
       MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
