@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytest
 
+from pathlib import Path
+
 from options_monitor.charts.gex_aggregate import build_gex_aggregate_chart
 from options_monitor.charts.gex_single import build_gex_single_expiry_chart
 from options_monitor.charts.price import build_sma_price_chart
@@ -16,20 +18,11 @@ from options_monitor.charts.vix_term import build_vix_term_chart
 from options_monitor.charts.vol_spread import build_iv_rv_chart
 from options_monitor.charts.volume import build_sma_volume_chart
 from options_monitor.data.candles import load_candles
-from options_monitor.data.options import find_latest_snapshots, load_options_snapshot
 
 
 @pytest.fixture()
-def spx_day() -> pd.DataFrame:
-    return load_candles("SPX", "day", start=date(2026, 1, 1))
-
-
-@pytest.fixture()
-def spxw_opts() -> pd.DataFrame:
-    snapshots = find_latest_snapshots("SPXW", start_date=date(2026, 4, 14), days_out=3)
-    if not snapshots:
-        pytest.skip("No SPXW snapshots available")
-    return pd.concat([load_options_snapshot(p) for p in snapshots.values()], ignore_index=True)
+def spx_day(candle_dir: Path) -> pd.DataFrame:
+    return load_candles("SPX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
 
 
 def test_build_sma_price_chart_returns_figure(spx_day: pd.DataFrame) -> None:
@@ -65,9 +58,9 @@ def test_build_iv_rv_chart_raises_on_misaligned_series() -> None:
         )
 
 
-def test_build_vix_term_chart_without_vix1d() -> None:
-    vix = load_candles("VIX", "day", start=date(2026, 1, 1))
-    vix9d = load_candles("VIX9D", "day", start=date(2026, 1, 1))
+def test_build_vix_term_chart_without_vix1d(candle_dir: Path) -> None:
+    vix = load_candles("VIX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
+    vix9d = load_candles("VIX9D", "day", data_dir=candle_dir, start=date(2026, 1, 1))
     fig = build_vix_term_chart(vix=vix, vix9d=vix9d)
     assert isinstance(fig, go.Figure)
     assert len(fig.data) == 2  # VIX + VIX9D only

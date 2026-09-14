@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -11,8 +12,8 @@ from options_monitor.calc.vol import expected_move, iv_rv_spread, realized_vol, 
 from options_monitor.data.candles import load_candles
 
 
-def test_realized_vol_shape_and_sanity() -> None:
-    spx = load_candles("SPX", "day", start=date(2026, 1, 1))
+def test_realized_vol_shape_and_sanity(candle_dir: Path) -> None:
+    spx = load_candles("SPX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
     rv = realized_vol(spx["close"], window=30)
     assert rv.shape == spx["close"].shape
     valid = rv.dropna()
@@ -21,8 +22,8 @@ def test_realized_vol_shape_and_sanity() -> None:
     assert (valid < 200).all()
 
 
-def test_realized_vol_9day() -> None:
-    spx = load_candles("SPX", "day")
+def test_realized_vol_9day(candle_dir: Path) -> None:
+    spx = load_candles("SPX", "day", data_dir=candle_dir)
     rv9 = realized_vol(spx["close"], window=9)
     assert len(rv9.dropna()) > 0
 
@@ -35,9 +36,9 @@ def test_iv_rv_spread_elementwise() -> None:
     pd.testing.assert_series_equal(spread, expected)
 
 
-def test_vix_spx_correlation_returns_float() -> None:
-    spx = load_candles("SPX", "day", start=date(2026, 1, 1))
-    vix = load_candles("VIX", "day", start=date(2026, 1, 1))
+def test_vix_spx_correlation_returns_float(candle_dir: Path) -> None:
+    spx = load_candles("SPX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
+    vix = load_candles("VIX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
     corr = vix_spx_correlation(spx, vix)
     assert -1.0 <= corr <= 1.0
 

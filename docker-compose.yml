@@ -2,12 +2,15 @@ services:
   options-monitor:
     build: .
     ports:
-      - "8502:8501"
+      - "${PORT:-8503}:8501"
     volumes:
-      - /Users/jplatta/.tickrake:/Users/jplatta/.tickrake:ro
+      - "${TICKRAKE_HOME:-$HOME/.tickrake}:/tickrake:ro"
+      - "${HOME}/.aws:/root/.aws:ro"
     environment:
-      options_monitor_TICKRAKE_DB_PATH: /Users/jplatta/.tickrake/tickrake.sqlite3
-      options_monitor_CANDLE_DIR: /Users/jplatta/.tickrake/data/history/ibkr-paper
-      options_monitor_SCHWAB_CANDLE_DIR: /Users/jplatta/.tickrake/data/history/schwab
-      options_monitor_OPTIONS_DIR: /Users/jplatta/.tickrake/data/options/schwab
-      options_monitor_PARQUET_OPTIONS_DIR: /Users/jplatta/.tickrake/data/options/schwab
+      TICKRAKE_HOME: /tickrake
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://localhost:9000}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_REGION: "${S3_REGION:-us-east-1}"

@@ -63,7 +63,7 @@ def render_fixed_strike_tab(options_dir: Path = OPTIONS_DIR) -> None:
         )
     with c2:
         fsv_contract_type = str(
-            st.radio("Contract", ["Call", "Put", "OTM"], index=0, horizontal=True, key="fsv_ct")
+            st.radio("Contract", ["Call", "Put", "OTM"], index=2, horizontal=True, key="fsv_ct")
         ).upper()
     with c3:
         fsv_otm_pct = float(
@@ -75,14 +75,13 @@ def render_fixed_strike_tab(options_dir: Path = OPTIONS_DIR) -> None:
         )
         fsv_interval = int(st.selectbox("Interval (min)", [30, 60], index=1, key="fsv_interval"))
     with c5:
-        fsv_include_0dte = st.toggle("Include 0DTE", value=True, key="fsv_include_0dte")
+        fsv_include_0dte = st.toggle("Include 0DTE", value=False, key="fsv_include_0dte")
 
     snapshot_paths = find_latest_snapshots(
         "SPXW",
         start_date=date.today(),
         days_out=fsv_days_out,
         include_0dte=fsv_include_0dte,
-        data_dir=options_dir,
     )
 
     if not snapshot_paths:

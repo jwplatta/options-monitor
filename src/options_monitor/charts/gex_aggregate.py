@@ -175,7 +175,7 @@ def build_gex_aggregate_chart(
             fig,
             low=float(zone["low"]),
             high=float(zone["high"]),
-            label=f"S{idx} {zone['low']:.0f}-{zone['high']:.0f}",
+            label=f"S{idx} {zone['low']:.0f}\u2013{zone['high']:.0f}",
             color="rgba(220, 0, 0, 0.9)",
             y_paper=0.20 + (idx - 1) * 0.08,
             xanchor="right",

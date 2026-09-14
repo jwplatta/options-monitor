@@ -19,3 +19,4 @@ htmlcov/
 .claude/settings.local.json
 .codex
 /tmp
+.env

@@ -15,7 +15,6 @@ from options_monitor.tabs import history
 def test_dashboard_router_only_invokes_selected_panel(monkeypatch) -> None:
     calls: list[str] = []
 
-    monkeypatch.setattr(app, "render_underlying_tab", lambda candle_dir: calls.append("underlying"))
     monkeypatch.setattr(app, "render_vol_tab", lambda candle_dir: calls.append("vol"))
     monkeypatch.setattr(
         app,
@@ -28,6 +27,7 @@ def test_dashboard_router_only_invokes_selected_panel(monkeypatch) -> None:
         lambda options_dir, candle_dir: calls.append("history"),
     )
     monkeypatch.setattr(app, "render_flow_tab", lambda options_dir: calls.append("flow"))
+    monkeypatch.setattr(app, "render_oi_tab", lambda options_dir: calls.append("oi"))
 
     app._render_active_dashboard_tab("Vol")
     assert calls == ["vol"]
@@ -252,7 +252,7 @@ def test_history_view_uses_selected_snapshot_and_reuses_single_expiry_chart(
     monkeypatch.setattr(
         gamma_map,
         "list_snapshot_dates_for_expiry",
-        lambda symbol, expiry, data_dir: [date(2026, 4, 15)],
+        lambda symbol, expiry: [date(2026, 4, 15)],
     )
     monkeypatch.setattr(
         gamma_map,
@@ -309,7 +309,7 @@ def test_history_view_warns_when_selected_date_has_no_snapshots(
     monkeypatch.setattr(
         gamma_map,
         "list_snapshot_dates_for_expiry",
-        lambda symbol, expiry, data_dir: [date(2026, 4, 15)],
+        lambda symbol, expiry: [date(2026, 4, 15)],
     )
     monkeypatch.setattr(gamma_map.st, "date_input", lambda *args, **kwargs: date(2026, 4, 16))
     monkeypatch.setattr(gamma_map.st, "warning", lambda message: warnings.append(message))
