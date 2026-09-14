@@ -8,8 +8,26 @@ import time
 from collections.abc import Generator
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import requests
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture()
+def candle_dir() -> Path:
+    """Local fixture candle CSVs — do not point at ~/.tickrake."""
+    return _FIXTURES / "candles"
+
+
+@pytest.fixture()
+def spxw_opts() -> pd.DataFrame:
+    """Small SPXW parquet fixture — one snapshot, NTM strikes, both sides."""
+    parquet = _FIXTURES / "options" / "schwab" / "2026" / "04" / "14" / "SPXW_samples_2026-04-14.parquet"
+    if not parquet.exists():
+        pytest.skip("SPXW fixture parquet not available")
+    return pd.read_parquet(parquet)
 
 
 def _app_path() -> Path:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,16 +14,6 @@ from options_monitor.calc.gex import (
     net_gex_by_price,
     net_gex_by_strike,
 )
-from options_monitor.data.options import find_latest_snapshots, load_options_snapshot
-
-
-@pytest.fixture()
-def spxw_opts() -> pd.DataFrame:
-    snapshots = find_latest_snapshots("SPXW", start_date=date(2026, 4, 14), days_out=5)
-    if not snapshots:
-        pytest.skip("No SPXW snapshots available")
-    dfs = [load_options_snapshot(path) for path in snapshots.values()]
-    return pd.concat(dfs, ignore_index=True)
 
 
 def test_net_gex_by_strike_columns(spxw_opts: pd.DataFrame) -> None:
