@@ -11,6 +11,12 @@ import duckdb
 import pandas as pd
 import streamlit as st
 
+_DUCKDB_CONN = duckdb.connect("/tmp/duckdb_options.db")
+_DUCKDB_CONN.execute("SET memory_limit='4GB'")
+_DUCKDB_CONN.execute("SET threads=2")
+_DUCKDB_CONN.execute("SET preserve_insertion_order=false")
+_DUCKDB_CONN.execute("SET temp_directory='/tmp/duckdb_swap'")
+
 from options_monitor.config import OPTIONS_DIR, PARQUET_OPTIONS_DIR
 from options_monitor.tickrake.client import TickrakeClient
 from options_monitor.tickrake.config import TickrakeConfig
@@ -136,7 +142,7 @@ def list_expirations_for_window_on_date(
 # ---------------------------------------------------------------------------
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300, max_entries=20)
 def parquet_path_for_date(
     symbol: str,
     sample_date: date,
@@ -154,7 +160,7 @@ def parquet_path_for_date(
 def find_historical_snapshot_times(expiry: date, parquet_path: Path) -> list[datetime]:
     """Return sorted distinct sampled_at datetimes for an expiry from a parquet file."""
     expiry_str = expiry.isoformat()
-    result = duckdb.execute(
+    result = _DUCKDB_CONN.execute(
         "SELECT DISTINCT sampled_at FROM read_parquet(?)"
         " WHERE expiration_date = ? ORDER BY sampled_at",
         [str(parquet_path), expiry_str],
@@ -162,14 +168,14 @@ def find_historical_snapshot_times(expiry: date, parquet_path: Path) -> list[dat
     return [datetime.fromisoformat(str(row[0])) for row in result]
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300, max_entries=10)
 def load_historical_snapshot(
     symbol: str, expiry: date, sampled_at: datetime, parquet_path: Path
 ) -> pd.DataFrame:
     """Load a single snapshot for one expiry and sampled_at from a parquet file."""
     expiry_str = expiry.isoformat()
     sampled_at_str = sampled_at.isoformat()
-    df = duckdb.execute(
+    df = _DUCKDB_CONN.execute(
         "SELECT * FROM read_parquet(?)"
         " WHERE expiration_date = ?"
         " AND CAST(sampled_at AS TIMESTAMPTZ) = CAST(? AS TIMESTAMPTZ)",
@@ -181,13 +187,13 @@ def load_historical_snapshot(
     return df
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300, max_entries=10)
 def load_historical_expiry(
     symbol: str, expiry: date, sample_date: date, parquet_path: Path
 ) -> pd.DataFrame:
     """Load all snapshots for one expiry on one historical date from a parquet file."""
     expiry_str = expiry.isoformat()
-    df = duckdb.execute(
+    df = _DUCKDB_CONN.execute(
         "SELECT * FROM read_parquet(?) WHERE expiration_date = ? ORDER BY sampled_at",
         [str(parquet_path), expiry_str],
     ).df()
@@ -197,7 +203,7 @@ def load_historical_expiry(
     return df
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300, max_entries=5)
 def load_historical_lookback(
     symbol: str,
     parquet_glob: str,
@@ -230,14 +236,14 @@ def load_historical_lookback(
         WHERE rn = 1
         ORDER BY sampled_at, expiration_date
     """
-    df = duckdb.execute(query).df()
+    df = _DUCKDB_CONN.execute(query).df()
     df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
     df["expiration_date"] = pd.to_datetime(df["expiration_date"])
     df["contract_type"] = df["contract_type"].str.upper()
     return df
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300, max_entries=5)
 def load_historical_sample_window(
     symbol: str,
     parquet_glob: str,
@@ -248,7 +254,8 @@ def load_historical_sample_window(
     start_str = sample_start.isoformat()
     query = f"""
         WITH bucketed AS (
-            SELECT *,
+            SELECT sampled_at, strike, volatility, open_interest,
+                   underlying_price, expiration_date, contract_type,
                 epoch_ms(
                     CAST(floor(epoch_ms(sampled_at) / ({interval_minutes} * 60000))
                     * ({interval_minutes} * 60000) AS BIGINT)
@@ -264,19 +271,20 @@ def load_historical_sample_window(
                 ) AS rn
             FROM bucketed
         )
-        SELECT * EXCLUDE (interval_bucket, rn)
+        SELECT sampled_at, strike, volatility, open_interest,
+               underlying_price, expiration_date, contract_type
         FROM ranked
         WHERE rn = 1
         ORDER BY sampled_at, expiration_date
     """
-    df = duckdb.execute(query).df()
+    df = _DUCKDB_CONN.execute(query).df()
     df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
     df["expiration_date"] = pd.to_datetime(df["expiration_date"])
     df["contract_type"] = df["contract_type"].str.upper()
     return df
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300, max_entries=5)
 def load_historical_expiry_lookback(
     symbol: str,
     expiry: date,
@@ -308,7 +316,7 @@ def load_historical_expiry_lookback(
         WHERE rn = 1
         ORDER BY sampled_at
     """
-    df = duckdb.execute(query).df()
+    df = _DUCKDB_CONN.execute(query).df()
     df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
     df["expiration_date"] = pd.to_datetime(df["expiration_date"])
     df["contract_type"] = df["contract_type"].str.upper()

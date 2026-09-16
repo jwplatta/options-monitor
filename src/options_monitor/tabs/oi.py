@@ -22,7 +22,7 @@ from options_monitor.data.options import (
 _CHICAGO = ZoneInfo("America/Chicago")
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300, max_entries=5)
 def _load_oi_historical_frames(
     symbol: str,
     lookback_days: int,
