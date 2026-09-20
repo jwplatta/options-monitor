@@ -44,7 +44,7 @@ def build_sma_volume_chart(
         price_hover = "%{text}<br>%{y:.2f}<extra></extra>"
         vol_hover = "%{text}<br>%{y:,.0f}<extra></extra>"
     else:
-        x = candles["datetime"]
+        x = candles["datetime"]  # type: ignore[assignment]
         hover_labels = None
         price_hover = None
         vol_hover = None
