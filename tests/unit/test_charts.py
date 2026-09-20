@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
-
-from pathlib import Path
 
 from options_monitor.charts.gex_aggregate import build_gex_aggregate_chart
 from options_monitor.charts.gex_single import build_gex_single_expiry_chart
@@ -67,7 +66,7 @@ def test_build_vix_term_chart_without_vix1d(candle_dir: Path) -> None:
 
 
 def test_build_gex_aggregate_chart_returns_figure(spxw_opts: pd.DataFrame) -> None:
-    from options_monitor.calc.gex import net_gex_by_price, net_gex_by_strike
+    from tractatus.calc.gex import net_gex_by_price, net_gex_by_strike
 
     spot = float(spxw_opts["underlying_price"].iloc[0])
     snap = pd.Timestamp("2026-04-14 14:00:00")

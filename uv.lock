@@ -835,6 +835,7 @@ dependencies = [
     { name = "pytz" },
     { name = "scipy" },
     { name = "streamlit" },
+    { name = "tractatus" },
 ]
 
 [package.dev-dependencies]
@@ -861,6 +862,7 @@ requires-dist = [
     { name = "pytz", specifier = ">=2026.2" },
     { name = "scipy", specifier = ">=1.13" },
     { name = "streamlit", specifier = ">=1.56.0" },
+    { name = "tractatus", git = "ssh://git@github.com/jwplatta/tractatus.git?rev=main" },
 ]
 
 [package.metadata.requires-dev]
@@ -1672,6 +1674,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/76/4921c00511f88af86a33de770d64141170f1cfd9c00311aea689949e274e/tornado-6.5.5-cp39-abi3-win32.whl", hash = "sha256:dd3eafaaeec1c7f2f8fdcd5f964e8907ad788fe8a5a32c4426fbbdda621223b7", size = 448582, upload-time = "2026-03-10T21:30:57.142Z" },
     { url = "https://files.pythonhosted.org/packages/2c/23/f6c6112a04d28eed765e374435fb1a9198f73e1ec4b4024184f21faeb1ad/tornado-6.5.5-cp39-abi3-win_amd64.whl", hash = "sha256:6443a794ba961a9f619b1ae926a2e900ac20c34483eea67be4ed8f1e58d3ef7b", size = 448990, upload-time = "2026-03-10T21:30:58.857Z" },
     { url = "https://files.pythonhosted.org/packages/b7/c8/876602cbc96469911f0939f703453c1157b0c826ecb05bdd32e023397d4e/tornado-6.5.5-cp39-abi3-win_arm64.whl", hash = "sha256:2c9a876e094109333f888539ddb2de4361743e5d21eece20688e3e351e4990a6", size = 448016, upload-time = "2026-03-10T21:31:00.43Z" },
+]
+
+[[package]]
+name = "tractatus"
+version = "0.1.0"
+source = { git = "ssh://git@github.com/jwplatta/tractatus.git?rev=main#05d9cac206bb17378b963e6d56f1d6fec9e2cc3c" }
+dependencies = [
+    { name = "boto3" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "scipy" },
 ]
 
 [[package]]

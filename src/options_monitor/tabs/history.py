@@ -50,7 +50,7 @@ def render_history_tab(options_dir: Path, candle_dir: Path) -> None:
 
         with col_ctrl:
             include_0dte = st.toggle("Include 0DTE", value=True, key="gm_0dte")
-            symbol = str(st.selectbox("Symbol", ["SPXW", "SPX"], index=0, key="gm_symbol"))
+            symbol = str(st.session_state.get("global_symbol", "SPXW"))
             range_pct = float(
                 st.slider(
                     "Strike range (% of spot)",

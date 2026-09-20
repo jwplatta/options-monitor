@@ -2,25 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
-from io import StringIO
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import pandas as pd
 import streamlit as st
+from tractatus.tickrake.client import TickrakeClient
+from tractatus.tickrake.config import TickrakeConfig
 
 _DUCKDB_CONN = duckdb.connect("/tmp/duckdb_options.db")
 _DUCKDB_CONN.execute("SET memory_limit='4GB'")
 _DUCKDB_CONN.execute("SET threads=2")
 _DUCKDB_CONN.execute("SET preserve_insertion_order=false")
 _DUCKDB_CONN.execute("SET temp_directory='/tmp/duckdb_swap'")
-
-from options_monitor.config import OPTIONS_DIR, PARQUET_OPTIONS_DIR
-from options_monitor.tickrake.client import TickrakeClient
-from options_monitor.tickrake.config import TickrakeConfig
-from options_monitor.tickrake.filesystem import parse_snapshot_filename
 
 _OPTIONS_DTYPES: dict[str, Any] = {
     "strike": "float64",
@@ -44,7 +40,7 @@ _OPTIONS_PROVIDER = "schwab"
 
 
 def _default_client() -> TickrakeClient:
-    return TickrakeClient(TickrakeConfig.from_env(options_dir=OPTIONS_DIR))
+    return TickrakeClient(TickrakeConfig.from_env())
 
 
 @st.cache_data(ttl=300)
@@ -54,7 +50,7 @@ def list_expirations(
 ) -> list[date]:
     """Return sorted list of expiration dates from the live intraday index."""
     client = _client or _default_client()
-    return client.intraday.list_expirations(symbol)
+    return client.options_intraday.list_expirations(symbol)
 
 
 @st.cache_data(ttl=300)
@@ -64,7 +60,7 @@ def list_snapshot_dates(
 ) -> list[date]:
     """Return sorted list of historical sample dates with archived data for symbol."""
     client = _client or _default_client()
-    return client.filesystem.list_sample_dates(symbol)
+    return client.options_filesystem.list_sample_dates(symbol)
 
 
 @st.cache_data(ttl=300)
@@ -75,7 +71,7 @@ def list_snapshot_dates_for_expiry(
 ) -> list[date]:
     """Return sorted list of sample dates with snapshots for the given expiry."""
     client = _client or _default_client()
-    return client.filesystem.list_sample_dates_for_expiry(symbol, expiry)
+    return client.options_filesystem.list_sample_dates_for_expiry(symbol, expiry)
 
 
 @st.cache_data(ttl=30)
@@ -92,7 +88,7 @@ def find_latest_snapshots(
     if target_end < target_start:
         return {}
     client = _client or _default_client()
-    return client.intraday.latest_snapshots(symbol, target_start, target_end)
+    return client.options_intraday.latest_snapshots(symbol, target_start, target_end)
 
 
 @st.cache_data(ttl=30)
@@ -103,7 +99,7 @@ def find_all_snapshots_for_expiry(
 ) -> list[tuple[datetime, Path]]:
     """Return all (fetch_datetime, path) pairs for a given expiry across all local dates."""
     client = _client or _default_client()
-    return client.filesystem.scan_all_snapshots_for_expiry(symbol, expiry)
+    return client.options_filesystem.scan_all_snapshots_for_expiry(symbol, expiry)
 
 
 @st.cache_data(ttl=30)
@@ -115,7 +111,7 @@ def find_snapshots_for_expiry_on_date(
 ) -> list[tuple[datetime, Path]]:
     """Return all snapshots for a given symbol/expiry on sample_date, sorted by time."""
     client = _client or _default_client()
-    return client.filesystem.scan_snapshots_for_expiry(symbol, expiry, sample_date)
+    return client.options_filesystem.scan_snapshots_for_expiry(symbol, expiry, sample_date)
 
 
 @st.cache_data(ttl=300)
@@ -132,7 +128,7 @@ def list_expirations_for_window_on_date(
     if target_end < target_start:
         return []
     client = _client or _default_client()
-    return client.filesystem.list_expirations_in_window_on_date(
+    return client.options_filesystem.list_expirations_in_window_on_date(
         symbol, sample_date, target_start, target_end
     )
 
@@ -153,7 +149,7 @@ def parquet_path_for_date(
     Returns None if not available locally or in the S3 archive.
     """
     client = _client or _default_client()
-    return client.archive.get_parquet_path(symbol, sample_date)
+    return client.options_archive.get_parquet_path(symbol, sample_date)
 
 
 @st.cache_data(ttl=300)
@@ -331,7 +327,7 @@ def load_options_snapshot(
     """Load a single options snapshot from a local path or s3:// URI."""
     if isinstance(path_or_uri, str) and path_or_uri.startswith("s3://"):
         client = _client or _default_client()
-        return client.intraday.fetch_csv(path_or_uri, _OPTIONS_DTYPES)
+        return client.options_intraday.fetch_csv(path_or_uri, _OPTIONS_DTYPES)
     path = Path(path_or_uri) if isinstance(path_or_uri, str) else path_or_uri
     if not path.exists():
         raise FileNotFoundError(f"Options snapshot not found: {path}")

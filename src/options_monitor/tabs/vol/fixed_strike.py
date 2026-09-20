@@ -9,9 +9,9 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import streamlit as st
+from tractatus.calc.fixed_strike_vol import build_iv_matrix
+from tractatus.calc.iv_zscore import build_bucket_stats, compute_zscore_matrix
 
-from options_monitor.calc.fixed_strike_vol import build_iv_matrix
-from options_monitor.calc.iv_zscore import build_bucket_stats, compute_zscore_matrix
 from options_monitor.config import OPTIONS_DIR, PARQUET_OPTIONS_DIR
 from options_monitor.data.options import (
     find_latest_snapshots,
@@ -56,6 +56,7 @@ def _load_historical_frames(
 
 def render_fixed_strike_tab(options_dir: Path = OPTIONS_DIR) -> None:
     """Render the Fixed Strike Vol subtab."""
+    symbol = str(st.session_state.get("global_symbol", "SPXW"))
     c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1, 1, 1])
     with c1:
         fsv_days_out = int(
@@ -78,14 +79,14 @@ def render_fixed_strike_tab(options_dir: Path = OPTIONS_DIR) -> None:
         fsv_include_0dte = st.toggle("Include 0DTE", value=False, key="fsv_include_0dte")
 
     snapshot_paths = find_latest_snapshots(
-        "SPXW",
+        symbol,
         start_date=date.today(),
         days_out=fsv_days_out,
         include_0dte=fsv_include_0dte,
     )
 
     if not snapshot_paths:
-        st.warning("No SPXW snapshots found.")
+        st.warning(f"No {symbol} snapshots found.")
         return
 
     loaded: dict[date, pd.DataFrame] = {}
@@ -112,7 +113,7 @@ def render_fixed_strike_tab(options_dir: Path = OPTIONS_DIR) -> None:
     zscore_matrix: pd.DataFrame | None = None
     with st.spinner("Loading historical data for z-scores…"):
         hist_frames, hist_datetimes = _load_historical_frames(
-            "SPXW", fsv_lookback, fsv_interval, options_dir
+            symbol, fsv_lookback, fsv_interval, options_dir
         )
     if hist_frames:
         bucket_stats = build_bucket_stats(hist_frames, hist_datetimes)

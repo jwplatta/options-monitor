@@ -14,6 +14,7 @@ dependencies = [
     "duckdb>=1.5.4",
     "pytz>=2026.2",
     "boto3>=1.34",
+    "tractatus @ git+ssh://git@github.com/jwplatta/tractatus.git@main",
 ]
 
 [project.scripts]
@@ -22,6 +23,9 @@ options-monitor = "options_monitor.__main__:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/options_monitor"]
@@ -91,5 +95,5 @@ module = "tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["plotly.*", "scipy.*"]
+module = ["plotly.*", "scipy.*", "tractatus.*"]
 ignore_missing_imports = true

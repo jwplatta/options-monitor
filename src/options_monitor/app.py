@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from tractatus.tickrake import TickrakeClient
 
 from options_monitor.config import CANDLE_DIR, OPTIONS_DIR
 from options_monitor.tabs.flow import render_flow_tab
@@ -12,6 +13,16 @@ from options_monitor.tabs.oi import render_oi_tab
 from options_monitor.tabs.vol import render_vol_tab
 
 _TOP_LEVEL_TABS = ["Vol", "GEX", "Flow", "OI", "History"]
+_DEFAULT_SYMBOL = "SPXW"
+
+
+@st.cache_data(ttl=3600)
+def _available_roots() -> list[str]:
+    """Return sorted option roots from the local tickrake index."""
+    client = TickrakeClient()
+    roots = client.options_filesystem.list_roots()
+    return roots if roots else [_DEFAULT_SYMBOL]
+
 
 _TAB_SPINNER_MSG: dict[str, str] = {
     "Vol": "Loading Vol...",
@@ -52,6 +63,9 @@ def render_dashboard() -> None:
 
     with st.sidebar:
         st.title("Options Monitor")
+        roots = _available_roots()
+        default_idx = roots.index(_DEFAULT_SYMBOL) if _DEFAULT_SYMBOL in roots else 0
+        st.selectbox("Symbol", roots, index=default_idx, key="global_symbol")
         active_tab = str(
             st.radio(
                 "Navigation",

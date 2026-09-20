@@ -6,12 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-_CHICAGO = ZoneInfo("America/Chicago")
-
 import pandas as pd
 import plotly.graph_objects as go
 
 from options_monitor.data.options import load_options_snapshot
+
+_CHICAGO = ZoneInfo("America/Chicago")
 
 _COLORSCALE = [
     [0.0, "rgb(220,0,0)"],

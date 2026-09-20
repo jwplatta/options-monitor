@@ -158,7 +158,8 @@ def test_render_history_tab_only_requests_single_expiry_for_chain_history(
 
     history.render_history_tab(options_dir=tmp_path, candle_dir=tmp_path)
 
-    assert selectbox_calls == ["Symbol"]
+    # Symbol selector moved to global sidebar; history tab has no selectboxes.
+    assert selectbox_calls == []
 
 
 def test_render_history_tab_skips_single_expiry_for_aggregate_history(
@@ -324,24 +325,27 @@ def test_history_view_warns_when_selected_date_has_no_snapshots(
     assert warnings
 
 
-def test_render_gex_tab_limits_symbol_options(monkeypatch, tmp_path: Path) -> None:
-    captured_options: list[str] = []
-
+def test_render_gex_tab_reads_global_symbol(monkeypatch, tmp_path: Path) -> None:
+    """GEX tab reads symbol from global session state, not its own selectbox."""
     monkeypatch.setattr(gamma_map.st, "subheader", lambda *args, **kwargs: None)
     monkeypatch.setattr(gamma_map.st, "fragment", lambda **kwargs: lambda func: func)
     monkeypatch.setattr(gamma_map.st, "columns", lambda spec: (nullcontext(), nullcontext()))
     monkeypatch.setattr(gamma_map.st, "toggle", lambda *args, **kwargs: True)
-
-    def _selectbox(label, options, index=0, key=None):
-        if label == "Symbol":
-            captured_options.extend(options)
-        return options[index]
-
-    monkeypatch.setattr(gamma_map.st, "selectbox", _selectbox)
+    monkeypatch.setattr(gamma_map.st, "selectbox", lambda *args, **kwargs: "GEX")
     monkeypatch.setattr(gamma_map.st, "slider", lambda *args, **kwargs: 5.0)
     monkeypatch.setattr(gamma_map.st, "segmented_control", lambda *args, **kwargs: "GEX")
     monkeypatch.setattr(gamma_map, "_render_active_gex_view", lambda **kwargs: None)
 
+    # No selectbox with "Symbol" label should be called — symbol comes from session state.
+    selectbox_labels: list[str] = []
+    original_selectbox = gamma_map.st.selectbox
+
+    def _tracking_selectbox(label, *args, **kwargs):
+        selectbox_labels.append(label)
+        return original_selectbox(label, *args, **kwargs)
+
+    monkeypatch.setattr(gamma_map.st, "selectbox", _tracking_selectbox)
+
     gamma_map.render_gex_tab(options_dir=tmp_path, candle_dir=tmp_path)
 
-    assert captured_options == ["SPXW", "SPX"]
+    assert "Symbol" not in selectbox_labels
