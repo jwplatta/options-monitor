@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from tractatus.calc.vol import expected_move, iv_rv_spread, realized_vol, vix_spx_correlation
 
-from options_monitor.calc.vol import expected_move, iv_rv_spread, realized_vol, vix_spx_correlation
 from options_monitor.data.candles import load_candles
 
 

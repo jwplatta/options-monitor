@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
-
-from options_monitor.calc.ma import vwap_session, vwap_weekly
+from tractatus.calc.ma import vwap_session, vwap_weekly
 
 _INTRADAY_FREQS = {"1min", "5min", "30min"}
 

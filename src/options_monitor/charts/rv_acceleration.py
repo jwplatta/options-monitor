@@ -5,8 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
-from options_monitor.calc.vol import realized_vol
+from tractatus.calc.vol import realized_vol
 
 _INTRADAY_FREQS = {"1min", "5min", "30min"}
 _BARS_PER_DAY = {"1min": 390, "5min": 78, "30min": 13, "day": 1}

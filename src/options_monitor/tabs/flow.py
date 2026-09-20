@@ -25,7 +25,6 @@ from options_monitor.data.options import (
     parquet_path_for_date,
 )
 
-_SYMBOL = "SPXW"
 _CONTRACT_MAP = {"Both": "BOTH", "Calls": "CALL", "Puts": "PUT"}
 _CHICAGO = ZoneInfo("America/Chicago")
 
@@ -69,11 +68,12 @@ def _load_tape(
     contract_filter: str,
     selected_exp: date,
     ema_span: int,
+    symbol: str = "SPXW",
     preloaded: pd.DataFrame | None = None,
 ) -> tuple[list[datetime], list[float], list[float], list[float], list[float]]:
     """Compute (or retrieve from cache) flow tape data for the given parameters."""
     tape_key = (
-        _SYMBOL,
+        symbol,
         selected_exp.isoformat(),
         sample_date.isoformat(),
         lookback_window,
@@ -121,6 +121,7 @@ def _render_flow_tape_view(
     contract_filter: str,
     selected_exp: date,
     ema_span: int,
+    symbol: str = "SPXW",
     preloaded: pd.DataFrame | None = None,
 ) -> None:
     timestamps, new_call, new_put, raw_call, raw_put = _load_tape(
@@ -132,7 +133,8 @@ def _render_flow_tape_view(
         contract_filter,
         selected_exp,
         ema_span,
-        preloaded,
+        symbol=symbol,
+        preloaded=preloaded,
     )
     _, cum_call, cum_put, _, _ = _load_tape(
         snapshots,
@@ -143,7 +145,8 @@ def _render_flow_tape_view(
         contract_filter,
         selected_exp,
         ema_span,
-        preloaded,
+        symbol=symbol,
+        preloaded=preloaded,
     )
     if not timestamps:
         st.warning("No flow data for selected date/expiry.")
@@ -168,6 +171,7 @@ def _render_flow_profile_view(
     selected_exp: date,
     spot: float,
     range_pct: float,
+    symbol: str = "SPXW",
     preloaded: pd.DataFrame | None = None,
 ) -> None:
     # Build ordered list of session snapshot timestamps for the rewind slider.
@@ -200,7 +204,7 @@ def _render_flow_profile_view(
     as_of_ts = session_ts[selected_idx]
 
     profile_key = (
-        _SYMBOL,
+        symbol,
         selected_exp.isoformat(),
         sample_date.isoformat(),
         lookback_window,
@@ -252,7 +256,7 @@ def _render_flow_profile_view(
         call_plot,
         put_plot,
         title=(
-            f"Flow Profile — {_SYMBOL} {selected_exp.isoformat()} "
+            f"Flow Profile — {symbol} {selected_exp.isoformat()} "
             f"({sample_date.isoformat()} as of {as_of_label})"
         ),
     )
@@ -343,15 +347,16 @@ def _render_intraday_flow_view(
 
 def render_flow_tab(options_dir: Path) -> None:
     """Render the Flow tab with Flow Tape and Flow Profile charts."""
+    symbol = str(st.session_state.get("global_symbol", "SPXW"))
     st.subheader("Flow")
 
     col_ctrl, col_chart = st.columns([1, 3])
 
     with col_ctrl:
         # Sample date selection.
-        sample_dates = list_snapshot_dates(_SYMBOL)
+        sample_dates = list_snapshot_dates(symbol)
         if not sample_dates:
-            st.error("No SPXW snapshots found.")
+            st.error(f"No {symbol} snapshots found.")
             return
 
         sample_date = st.date_input(
@@ -363,7 +368,7 @@ def render_flow_tab(options_dir: Path) -> None:
         )
 
         # Expiration selection — default to 0DTE if available.
-        all_expiries = list_expirations(_SYMBOL)
+        all_expiries = list_expirations(symbol)
         # Filter to expirations that have snapshots on the chosen sample date.
         available_expiries = [e for e in all_expiries if e >= sample_date]
         if not available_expiries:
@@ -425,7 +430,7 @@ def render_flow_tab(options_dir: Path) -> None:
 
     if sample_date < date.today():
         try:
-            preloaded = _load_parquet_preloaded(_SYMBOL, selected_exp, sample_date)
+            preloaded = _load_parquet_preloaded(symbol, selected_exp, sample_date)
         except FileNotFoundError as e:
             with col_chart:
                 st.error(str(e))
@@ -438,14 +443,14 @@ def render_flow_tab(options_dir: Path) -> None:
         spot = float(spot_series.iloc[-1])
     else:
         snapshots = find_snapshots_for_expiry_on_date(
-            _SYMBOL,
+            symbol,
             expiry=selected_exp,
             sample_date=sample_date,
         )
         if not snapshots:
             with col_chart:
                 st.warning(
-                    f"No snapshots found for {_SYMBOL} expiry {selected_exp} on {sample_date}."
+                    f"No snapshots found for {symbol} expiry {selected_exp} on {sample_date}."
                 )
             return
         spot = _get_spot(snapshots) or 0.0
@@ -475,6 +480,7 @@ def render_flow_tab(options_dir: Path) -> None:
                 contract_filter=contract_filter,
                 selected_exp=selected_exp,
                 ema_span=ema_span,
+                symbol=symbol,
                 preloaded=preloaded,
             )
         elif active_view == "Flow Profile":
@@ -486,11 +492,12 @@ def render_flow_tab(options_dir: Path) -> None:
                 selected_exp=selected_exp,
                 spot=spot,
                 range_pct=range_pct,
+                symbol=symbol,
                 preloaded=preloaded,
             )
         else:
             _render_intraday_flow_view(
-                symbol=_SYMBOL,
+                symbol=symbol,
                 selected_exp=selected_exp,
                 sample_date=sample_date,
                 spot=spot,

@@ -8,16 +8,16 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
-
-from options_monitor.calc.gex import (
+from tractatus.calc.gex import (
     find_aggregate_wall_strikes,
     find_decision_zones,
     find_raw_wall_strikes,
     net_gex_by_price,
     net_gex_by_strike,
 )
-from options_monitor.calc.gex_term_structure import compute_gex_term_structure
-from options_monitor.calc.vol import compute_risk_reversal
+from tractatus.calc.gex_term_structure import compute_gex_term_structure
+from tractatus.calc.vol import compute_risk_reversal
+
 from options_monitor.charts.gex_aggregate import build_gex_aggregate_chart
 from options_monitor.charts.gex_single import build_gex_single_expiry_chart
 from options_monitor.charts.gex_term_structure import build_gex_term_structure_chart
@@ -553,8 +553,9 @@ def _render_gamma_heatmap_view(
     gh_key = (symbol, round(spot), strike_range, gh_start, gh_end, len(gh_snapshots))
     with st.spinner("Computing GEX term structure..."):
         if st.session_state.get("_gh_key") != gh_key:
+            gh_frames = {exp: load_options_snapshot(p) for exp, p in gh_snapshots.items()}
             gh_strikes, gh_expirations, gh_matrix = compute_gex_term_structure(
-                gh_snapshots, spot=spot, strike_range=strike_range
+                gh_frames, spot=spot, strike_range=strike_range
             )
             st.session_state["_gh_key"] = gh_key
             st.session_state["_gh_strikes"] = gh_strikes
@@ -626,7 +627,7 @@ def render_gex_tab(options_dir: Path, candle_dir: Path) -> None:
 
         with col_ctrl:
             include_0dte = st.toggle("Include 0DTE", value=True, key="gm_0dte")
-            symbol = str(st.selectbox("Symbol", ["SPXW", "SPX"], index=0, key="gm_symbol"))
+            symbol = str(st.session_state.get("global_symbol", "SPXW"))
             range_pct = float(
                 st.slider(
                     "Strike range (% of spot)",

@@ -10,6 +10,9 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from tractatus.tickrake.client import TickrakeClient
+from tractatus.tickrake.config import TickrakeConfig
+from tractatus.tickrake.options.filesystem import parse_snapshot_filename
 
 from options_monitor.data.options import (
     find_all_snapshots_for_expiry,
@@ -27,10 +30,6 @@ from options_monitor.data.options import (
     load_options_snapshot,
     parquet_path_for_date,
 )
-from options_monitor.tickrake.client import TickrakeClient
-from options_monitor.tickrake.config import TickrakeConfig
-from options_monitor.tickrake.filesystem import parse_snapshot_filename
-
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
@@ -55,16 +54,16 @@ def clear_streamlit_caches() -> None:
     parquet_path_for_date.clear()
 
 
-def _make_client(options_dir: Path) -> TickrakeClient:
-    """Build a TickrakeClient pointed at a temp options_dir with no real S3/MinIO."""
+def _make_client(data_dir: Path) -> TickrakeClient:
+    """Build a TickrakeClient pointed at a temp data_dir with no real S3/MinIO."""
     cfg = TickrakeConfig(
+        data_dir=data_dir,
         minio_endpoint="http://localhost:9000",
         minio_bucket="tickrake",
         minio_access_key="test",
         minio_secret_key="test",
         s3_bucket="tickrake",
         s3_region="us-east-1",
-        options_dir=options_dir,
     )
     # Patch boto3 so no real connections are made
     mock_s3 = MagicMock()
@@ -105,7 +104,7 @@ def _write_snapshot_csv(path: Path, underlying_price: float = 5200.0) -> Path:
 
 
 def _write_timestamped_csv(
-    options_dir: Path,
+    data_dir: Path,
     root: str,
     expiry: str,
     fetch_dt: str,
@@ -114,7 +113,7 @@ def _write_timestamped_csv(
     """Write a timestamped snapshot CSV at the standard path.
 
     Args:
-        options_dir: provider-level dir, e.g. tmp/options/schwab
+        data_dir: tickrake data root; files go under data_dir/options/schwab/
         root: symbol root, e.g. "SPXW"
         expiry: ISO date string for expiration, e.g. "2026-04-18"
         fetch_dt: ISO datetime string for fetch time, e.g. "2026-04-15T09:00:00"
@@ -124,28 +123,35 @@ def _write_timestamped_csv(
     date_str = f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
     time_str = f"{dt.hour:02d}-{dt.minute:02d}-{dt.second:02d}"
     fname = f"{root}_exp{expiry}_{date_str}_{time_str}.csv"
-    path = options_dir / f"{dt.year:04d}" / f"{dt.month:02d}" / f"{dt.day:02d}" / fname
+    provider_dir = data_dir / "options" / "schwab"
+    path = provider_dir / f"{dt.year:04d}" / f"{dt.month:02d}" / f"{dt.day:02d}" / fname
     return _write_snapshot_csv(path, underlying_price)
 
 
-def _write_root_json(options_dir: Path, root: str, sample_dates: list[str]) -> None:
+def _write_root_json(data_dir: Path, root: str, sample_dates: list[str]) -> None:
     """Write a ROOT.json index with the given sample dates."""
     historical = [
         {
             "sample_date": d,
             "archived_at": f"{d}T21:00:00Z",
-            "files": [
-                {
-                    "format": "parquet",
+            "files": {
+                "parquet": {
                     "uri": f"s3://tickrake/options/schwab/{d[:4]}/{d[5:7]}/{d[8:10]}/{root}_samples_{d}.parquet",
                     "row_count": 1000,
                 }
-            ],
+            },
         }
         for d in sample_dates
     ]
-    payload = {"provider": "schwab", "root": root, "updated_at": "2026-04-15T22:00:00Z", "historical": historical}
-    (options_dir / f"{root}.json").write_text(json.dumps(payload))
+    payload = {
+        "provider": "schwab",
+        "root": root,
+        "updated_at": "2026-04-15T22:00:00Z",
+        "historical": historical,
+    }
+    provider_dir = data_dir / "options" / "schwab"
+    provider_dir.mkdir(parents=True, exist_ok=True)
+    (provider_dir / f"{root}.json").write_text(json.dumps(payload))
 
 
 def _make_intraday_index(root: str, expirations: list[str]) -> dict[str, Any]:
@@ -206,7 +212,7 @@ def test_parse_filename_bad_date(tmp_path: Path) -> None:
 def test_list_expirations_deduplicated_and_sorted(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     index = _make_intraday_index("SPXW", ["2026-04-17", "2026-04-15", "2026-04-17"])
-    client.intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
+    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
         "Body": _body(json.dumps(index))
     }
     result = list_expirations("SPXW", _client=client)
@@ -221,7 +227,7 @@ def test_list_expirations_deduplicated_and_sorted(tmp_path: Path) -> None:
 def test_find_latest_snapshots_returns_one_uri_per_expiry_in_window(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     index = _make_intraday_index("SPXW", ["2026-04-15", "2026-04-16", "2026-04-20"])
-    client.intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
+    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
         "Body": _body(json.dumps(index))
     }
     snapshots = find_latest_snapshots(
@@ -235,7 +241,7 @@ def test_find_latest_snapshots_returns_one_uri_per_expiry_in_window(tmp_path: Pa
 def test_find_latest_snapshots_respects_include_0dte(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     index = _make_intraday_index("SPXW", ["2026-04-15", "2026-04-16"])
-    client.intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
+    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
         "Body": _body(json.dumps(index))
     }
 
@@ -401,11 +407,13 @@ def test_load_options_snapshot_s3_uri_fetches_from_minio(tmp_path: Path) -> None
     client = _make_client(tmp_path)
     csv_path = _write_snapshot_csv(tmp_path / "remote.csv")
     csv_bytes = csv_path.read_bytes()
-    client.intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
+    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
         "Body": _body(csv_bytes)
     }
 
-    df = load_options_snapshot("s3://tickrake/intraday/schwab/options/SPXW_exp2026-04-18.csv", _client=client)
+    df = load_options_snapshot(
+        "s3://tickrake/intraday/schwab/options/SPXW_exp2026-04-18.csv", _client=client
+    )
     assert not df.empty
     assert "strike" in df.columns
 
@@ -418,7 +426,7 @@ def test_load_options_snapshot_s3_uri_fetches_from_minio(tmp_path: Path) -> None
 def test_parquet_path_for_date_returns_existing_local_file(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     parquet_path = (
-        tmp_path / "2026" / "04" / "15" / "SPXW_samples_2026-04-15.parquet"
+        tmp_path / "options" / "schwab" / "2026" / "04" / "15" / "SPXW_samples_2026-04-15.parquet"
     )
     parquet_path.parent.mkdir(parents=True)
     parquet_path.touch()
@@ -431,19 +439,21 @@ def test_parquet_path_for_date_downloads_from_s3_on_cache_miss(tmp_path: Path) -
     client = _make_client(tmp_path)
     _write_root_json(tmp_path, "SPXW", ["2026-04-15"])
 
-    local_path = tmp_path / "2026" / "04" / "15" / "SPXW_samples_2026-04-15.parquet"
+    local_path = (
+        tmp_path / "options" / "schwab" / "2026" / "04" / "15" / "SPXW_samples_2026-04-15.parquet"
+    )
     assert not local_path.exists()
 
     def fake_download(bucket: str, key: str, dest: str) -> None:
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
         Path(dest).touch()
 
-    client.archive._s3.download_file.side_effect = fake_download  # type: ignore[attr-defined]
+    client.options_archive._s3.download_file.side_effect = fake_download  # type: ignore[attr-defined]
 
     result = parquet_path_for_date("SPXW", date(2026, 4, 15), _client=client)
     assert result is not None
     assert result.exists()
-    client.archive._s3.download_file.assert_called_once()  # type: ignore[attr-defined]
+    client.options_archive._s3.download_file.assert_called_once()  # type: ignore[attr-defined]
 
 
 def test_parquet_path_for_date_returns_none_when_not_in_root_json(tmp_path: Path) -> None:
@@ -471,23 +481,24 @@ _INTEGRATION_SYMBOL = "SPXW"
 def test_parquet_path_for_date_known_good(tmp_path: Path) -> None:
     if not _INTEGRATION_PARQUET.exists():
         pytest.skip("Integration parquet file not present")
-    client = _make_client(_INTEGRATION_PARQUET.parent.parent.parent.parent)
+    # data_dir = ~/.tickrake/data (6 levels up from the parquet file)
+    client = _make_client(_INTEGRATION_PARQUET.parents[5])
     p = parquet_path_for_date(_INTEGRATION_SYMBOL, _INTEGRATION_DATE, _client=client)
     assert p is not None
     assert p.exists()
 
 
 def test_parquet_path_for_date_missing_returns_none() -> None:
-    from options_monitor.tickrake.archive import ArchiveClient
+    from tractatus.tickrake.options.archive import ArchiveClient
 
     cfg = TickrakeConfig(
+        data_dir=Path("/nonexistent/path"),
         minio_endpoint="",
         minio_bucket="",
         minio_access_key="",
         minio_secret_key="",
         s3_bucket="",
         s3_region="",
-        options_dir=Path("/nonexistent/path"),
     )
     with patch("boto3.client", return_value=MagicMock()):
         archive = ArchiveClient(cfg)

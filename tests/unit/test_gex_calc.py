@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
-
-from options_monitor.calc.gex import (
+from tractatus.calc.gex import (
     find_aggregate_wall_strikes,
     find_decision_zones,
     find_top_aggregate_gamma_strikes,

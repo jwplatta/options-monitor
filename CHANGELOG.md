@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Migrated `options_monitor.tickrake` to `tractatus.tickrake` — removed local tickrake module, now imported from the `tractatus` package
+- Extracted pure calc modules to `tractatus.calc`: `gex`, `gex_term_structure`, `vol`, `ma`, `oi`, `oi_zscore`, `iv_zscore`, `fixed_strike_vol`
+- Refactored `gex_term_structure.compute_gex_term_structure` to accept `dict[date, DataFrame]` instead of `dict[date, Path]`
+- `tractatus` installed as git dependency pinned to `main`
+
+---
+
 ## Unreleased — feat/minio-s3-data-sources
 
 ### Added

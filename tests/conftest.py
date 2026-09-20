@@ -24,7 +24,9 @@ def candle_dir() -> Path:
 @pytest.fixture()
 def spxw_opts() -> pd.DataFrame:
     """Small SPXW parquet fixture — one snapshot, NTM strikes, both sides."""
-    parquet = _FIXTURES / "options" / "schwab" / "2026" / "04" / "14" / "SPXW_samples_2026-04-14.parquet"
+    parquet = (
+        _FIXTURES / "options" / "schwab" / "2026" / "04" / "14" / "SPXW_samples_2026-04-14.parquet"
+    )
     if not parquet.exists():
         pytest.skip("SPXW fixture parquet not available")
     return pd.read_parquet(parquet)

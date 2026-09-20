@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
-from options_monitor.calc.vol import RiskReversalResult, compute_risk_reversal
+from tractatus.calc.vol import RiskReversalResult, compute_risk_reversal
 
 
 @pytest.fixture()
