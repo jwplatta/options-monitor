@@ -75,7 +75,7 @@ def compute_gex_history(
         sign = df["contract_type"].str.upper().map({"CALL": 1.0, "PUT": -1.0})
         df = df.assign(gex=df["gamma"] * df["open_interest"] * (spot**2) * sign)
         df = df.dropna(subset=["gex"])
-        time_series[ts] = {float(k): float(v) for k, v in df.groupby("K")["gex"].sum().items()}
+        time_series[ts] = {float(k): float(v) for k, v in df.groupby("K")["gex"].sum().items()}  # type: ignore[arg-type]
 
     utc_timestamps = sorted(time_series.keys())
     # Convert naive UTC → naive CST/CDT (strips tz after conversion for Streamlit compat)
@@ -125,7 +125,7 @@ def build_gex_heatmap_chart(
         annotation_text=f"Spot {spot:.0f}",
         annotation_position="right",
     )
-    xaxis_kwargs: dict = {}
+    xaxis_kwargs: dict[str, object] = {}
     if x_range is not None:
         xaxis_kwargs["range"] = list(x_range)
     fig.update_layout(

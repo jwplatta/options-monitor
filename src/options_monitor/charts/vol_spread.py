@@ -6,9 +6,9 @@ import pandas as pd
 import plotly.graph_objects as go
 
 
-def _rangebreaks(freq: str) -> list[dict]:
+def _rangebreaks(freq: str) -> list[dict[str, object]]:
     """Plotly rangebreaks to hide weekends and (for intraday) overnight gaps."""
-    breaks: list[dict] = [{"bounds": ["sat", "mon"]}]
+    breaks: list[dict[str, object]] = [{"bounds": ["sat", "mon"]}]
     if freq != "day":
         # UTC: market closes 21:00, opens 14:30
         breaks.append({"bounds": [21, 14.5], "pattern": "hour"})

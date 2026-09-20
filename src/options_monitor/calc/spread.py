@@ -97,7 +97,7 @@ def compute_intraday_spread(
     contract_cols = ["_strike", "expiration_date", "contract_type"]
     combined = combined.sort_values(["_strike", "expiration_date", "contract_type", "_ts"])
 
-    spread_rows: list[dict] = []
+    spread_rows: list[dict[str, object]] = []
     for _, grp in combined.groupby(contract_cols, sort=False):
         grp = grp.sort_values("_ts").copy()
         if len(grp) < 2:
@@ -120,7 +120,7 @@ def compute_intraday_spread(
 
     spread_df = pd.DataFrame(spread_rows)
 
-    spread_df = spread_df.groupby(["_strike", "_ts"], as_index=False)["z"].mean()
+    spread_df = spread_df.groupby(["_strike", "_ts"], as_index=False)["z"].mean()  # type: ignore[assignment]
 
     pivot = spread_df.pivot(index="_strike", columns="_ts", values="z").fillna(0.0)
     pivot = pivot.sort_index()
@@ -128,8 +128,8 @@ def compute_intraday_spread(
     strikes = [float(s) for s in pivot.index]
     utc_timestamps = list(pivot.columns)
 
-    timestamps = [_to_chicago(ts) for ts in utc_timestamps]
+    timestamps = [_to_chicago(ts) for ts in utc_timestamps]  # type: ignore[arg-type]
 
     matrix = pivot.values.tolist()
-    prices = [price_by_ts.get(ts, float("nan")) for ts in utc_timestamps]
+    prices = [price_by_ts.get(ts, float("nan")) for ts in utc_timestamps]  # type: ignore[call-overload]
     return strikes, timestamps, matrix, prices
