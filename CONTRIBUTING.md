@@ -26,13 +26,20 @@ uv run options-monitor
 
 ## Running checks
 
-Run the standard development checks before opening a pull request:
+Run all checks before committing or opening a pull request:
 
 ```bash
-uv run ruff check .
-uv run ruff format .
-uv run mypy
-uv run pytest
+make check    # runs lint, format, typecheck, and tests
+```
+
+Individual checks:
+
+```bash
+make lint       # uv run ruff check src tests
+make format     # uv run ruff format --check src tests
+make typecheck  # uv run mypy src
+make test       # uv run pytest tests/unit/ -q
+make fix        # auto-fix lint and format issues
 ```
 
 If your change affects the dashboard UI, also run the app locally:
