@@ -69,8 +69,10 @@ def _make_client(data_dir: Path) -> TickrakeClient:
     mock_s3 = MagicMock()
     mock_session = MagicMock()
     mock_session.client.return_value = mock_s3
-    with patch("boto3.Session", return_value=mock_session), \
-         patch("boto3.client", return_value=mock_s3):
+    with (
+        patch("boto3.Session", return_value=mock_session),
+        patch("boto3.client", return_value=mock_s3),
+    ):
         return TickrakeClient(cfg)
 
 

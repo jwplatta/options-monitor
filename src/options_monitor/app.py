@@ -23,6 +23,7 @@ def _available_roots() -> list[str]:
     roots = client.options_filesystem.list_roots()
     return roots if roots else [_DEFAULT_SYMBOL]
 
+
 _TAB_SPINNER_MSG: dict[str, str] = {
     "Vol": "Loading Vol...",
     "GEX": "Loading GEX...",
