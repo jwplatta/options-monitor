@@ -20,3 +20,5 @@ htmlcov/
 .codex
 /tmp
 .env
+.claude
+/notebooks
