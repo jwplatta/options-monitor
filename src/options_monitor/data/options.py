@@ -50,7 +50,7 @@ def list_expirations(
 ) -> list[date]:
     """Return sorted list of expiration dates from the live intraday index."""
     client = _client or _default_client()
-    return client.options_intraday.list_expirations(symbol)
+    return client.options_intraday.list_expirations(symbol)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300)
@@ -60,7 +60,7 @@ def list_snapshot_dates(
 ) -> list[date]:
     """Return sorted list of historical sample dates with archived data for symbol."""
     client = _client or _default_client()
-    return client.options_filesystem.list_sample_dates(symbol)
+    return client.options_filesystem.list_sample_dates(symbol)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300)
@@ -71,7 +71,7 @@ def list_snapshot_dates_for_expiry(
 ) -> list[date]:
     """Return sorted list of sample dates with snapshots for the given expiry."""
     client = _client or _default_client()
-    return client.options_filesystem.list_sample_dates_for_expiry(symbol, expiry)
+    return client.options_filesystem.list_sample_dates_for_expiry(symbol, expiry)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=30)
@@ -88,7 +88,7 @@ def find_latest_snapshots(
     if target_end < target_start:
         return {}
     client = _client or _default_client()
-    return client.options_intraday.latest_snapshots(symbol, target_start, target_end)
+    return client.options_intraday.latest_snapshots(symbol, target_start, target_end)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=30)
@@ -99,7 +99,7 @@ def find_all_snapshots_for_expiry(
 ) -> list[tuple[datetime, Path]]:
     """Return all (fetch_datetime, path) pairs for a given expiry across all local dates."""
     client = _client or _default_client()
-    return client.options_filesystem.scan_all_snapshots_for_expiry(symbol, expiry)
+    return client.options_filesystem.scan_all_snapshots_for_expiry(symbol, expiry)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=30)
@@ -111,7 +111,7 @@ def find_snapshots_for_expiry_on_date(
 ) -> list[tuple[datetime, Path]]:
     """Return all snapshots for a given symbol/expiry on sample_date, sorted by time."""
     client = _client or _default_client()
-    return client.options_filesystem.scan_snapshots_for_expiry(symbol, expiry, sample_date)
+    return client.options_filesystem.scan_snapshots_for_expiry(symbol, expiry, sample_date)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300)
@@ -128,7 +128,7 @@ def list_expirations_for_window_on_date(
     if target_end < target_start:
         return []
     client = _client or _default_client()
-    return client.options_filesystem.list_expirations_in_window_on_date(
+    return client.options_filesystem.list_expirations_in_window_on_date(  # type: ignore[no-any-return]
         symbol, sample_date, target_start, target_end
     )
 
@@ -149,7 +149,7 @@ def parquet_path_for_date(
     Returns None if not available locally or in the S3 archive.
     """
     client = _client or _default_client()
-    return client.options_archive.get_parquet_path(symbol, sample_date)
+    return client.options_archive.get_parquet_path(symbol, sample_date)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300)
@@ -327,7 +327,7 @@ def load_options_snapshot(
     """Load a single options snapshot from a local path or s3:// URI."""
     if isinstance(path_or_uri, str) and path_or_uri.startswith("s3://"):
         client = _client or _default_client()
-        return client.options_intraday.fetch_csv(path_or_uri, _OPTIONS_DTYPES)
+        return client.options_intraday.fetch_csv(path_or_uri, _OPTIONS_DTYPES)  # type: ignore[no-any-return]
     path = Path(path_or_uri) if isinstance(path_or_uri, str) else path_or_uri
     if not path.exists():
         raise FileNotFoundError(f"Options snapshot not found: {path}")

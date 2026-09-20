@@ -71,7 +71,7 @@ def _load_window_snapshot_data(
     include_0dte: bool,
     range_pct: float,
     options_dir: Path,
-) -> tuple[dict[date, Path], pd.DataFrame, float, int] | None:
+) -> tuple[dict[date, str], pd.DataFrame, float, int] | None:
     snapshots = find_latest_snapshots(
         symbol,
         start_date=start_date,

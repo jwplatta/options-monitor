@@ -6,8 +6,8 @@ import pandas as pd
 import plotly.graph_objects as go
 
 
-def _rangebreaks(freq: str) -> list[dict]:
-    breaks: list[dict] = [{"bounds": ["sat", "mon"]}]
+def _rangebreaks(freq: str) -> list[dict[str, object]]:
+    breaks: list[dict[str, object]] = [{"bounds": ["sat", "mon"]}]
     if freq != "day":
         breaks.append({"bounds": [21, 14.5], "pattern": "hour"})
     return breaks

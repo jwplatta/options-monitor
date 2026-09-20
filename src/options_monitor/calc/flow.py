@@ -116,7 +116,7 @@ def compute_intraday_flow(
     contract_cols = ["_strike", "expiration_date", "contract_type"]
     combined = combined.sort_values(["_strike", "expiration_date", "contract_type", "_ts"])
 
-    flow_rows: list[dict] = []
+    flow_rows: list[dict[str, object]] = []
     for _, grp in combined.groupby(contract_cols, sort=False):
         grp = grp.sort_values("_ts").copy()
         if len(grp) < 2:
@@ -146,7 +146,7 @@ def compute_intraday_flow(
     flow_df = pd.DataFrame(flow_rows)
 
     # Aggregate duplicate (strike, ts) cells by mean
-    flow_df = flow_df.groupby(["_strike", "_ts"], as_index=False)["flow"].mean()
+    flow_df = flow_df.groupby(["_strike", "_ts"], as_index=False)["flow"].mean()  # type: ignore[assignment]
 
     # Pivot to matrix
     pivot = flow_df.pivot(index="_strike", columns="_ts", values="flow").fillna(0.0)
@@ -156,7 +156,7 @@ def compute_intraday_flow(
     utc_timestamps = list(pivot.columns)
 
     # Convert UTC - Chicago naive (matches gex_heatmap.py convention)
-    timestamps = [_to_chicago(ts) for ts in utc_timestamps]
+    timestamps = [_to_chicago(ts) for ts in utc_timestamps]  # type: ignore[arg-type]
 
     matrix = pivot.values.tolist()
     prices = [price_by_ts.get(ts, float("nan")) for ts in utc_timestamps]

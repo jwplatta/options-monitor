@@ -1679,7 +1679,7 @@ wheels = [
 [[package]]
 name = "tractatus"
 version = "0.1.0"
-source = { git = "ssh://git@github.com/jwplatta/tractatus.git?rev=main#05d9cac206bb17378b963e6d56f1d6fec9e2cc3c" }
+source = { git = "ssh://git@github.com/jwplatta/tractatus.git?rev=main#4ce21b244e0907bcf7c738490bb2d14b5950dfaf" }
 dependencies = [
     { name = "boto3" },
     { name = "numpy" },
