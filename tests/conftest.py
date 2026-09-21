@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Generator
 from pathlib import Path
+
+# Set a unique DuckDB path before any options_monitor imports so tests don't
+# conflict with a running app that holds the default /tmp/duckdb_options.db lock.
+os.environ.setdefault(
+    "DUCKDB_OPTIONS_PATH",
+    os.path.join(tempfile.gettempdir(), f"duckdb_options_test_{os.getpid()}.db"),
+)
 
 import pandas as pd
 import pytest
