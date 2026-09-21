@@ -42,6 +42,14 @@ Each tab owns its Streamlit widgets and session-state caching. Calc and chart la
 | `options_monitor_CANDLE_DIR` | `~/.tickrake/data/history/ibkr-paper/` |
 | `options_monitor_SCHWAB_CANDLE_DIR` | `~/.tickrake/data/history/schwab/` |
 
+## Git workflow
+
+Follow `CONTRIBUTING.md` for all changes:
+
+1. Branch from `main` using a conventional prefix: `feature/...`, `fix/...`, `chore/...`, `refactor/...`, `docs/...`
+2. Run `make check` before committing (lint, format, typecheck, tests must all pass)
+3. Open a pull request against `main` — do not commit directly to `main`
+
 ## Skills
 
 Always invoke the relevant skill before starting work:
