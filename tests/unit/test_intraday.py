@@ -103,9 +103,7 @@ def test_fetch_index_returns_parsed_json() -> None:
     mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
     result = store.fetch_index("SPXW")
     assert result["root"] == "SPXW"
-    mock_s3.get_object.assert_called_once_with(
-        Bucket="tickrake", Key="intraday/schwab/SPXW.json"
-    )
+    mock_s3.get_object.assert_called_once_with(Bucket="tickrake", Key="intraday/schwab/SPXW.json")
 
 
 def test_fetch_index_returns_empty_on_client_error() -> None:
@@ -197,9 +195,7 @@ def test_fetch_csv_returns_dataframe(tmp_path: Path) -> None:
     df = store.fetch_csv("s3://tickrake/intraday/schwab/snap.csv")
     assert not df.empty
     assert "strike" in df.columns
-    mock_s3.get_object.assert_called_once_with(
-        Bucket="tickrake", Key="intraday/schwab/snap.csv"
-    )
+    mock_s3.get_object.assert_called_once_with(Bucket="tickrake", Key="intraday/schwab/snap.csv")
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +262,5 @@ def test_cached_load_options_snapshot_s3(tmp_path: Path) -> None:
     store, mock_s3 = _make_store()
     csv_path = _write_csv(tmp_path / "snap.csv")
     mock_s3.get_object.return_value = {"Body": _body(csv_path.read_bytes())}
-    df = load_options_snapshot(
-        "s3://tickrake/intraday/schwab/snap.csv", _store=store
-    )
+    df = load_options_snapshot("s3://tickrake/intraday/schwab/snap.csv", _store=store)
     assert not df.empty

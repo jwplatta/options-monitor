@@ -5,7 +5,7 @@ title: "options-monitor: Merge archive + intraday symbol lists in _available_roo
 description: _available_roots() only queries the archive filesystem; it should also query the intraday MinIO store so all available symbols appear
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---

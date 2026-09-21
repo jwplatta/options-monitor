@@ -5,7 +5,7 @@ title: "tractatus: Add OptionsQueryClient with DuckDB parquet querying"
 description: Add OptionsQueryClient to tractatus to own all DuckDB parquet queries, removing raw SQL from options-monitor
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---

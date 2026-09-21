@@ -5,7 +5,7 @@ title: "tractatus: Unit tests for OptionsQueryClient"
 description: Full unit test coverage for the new OptionsQueryClient using real in-memory parquet files
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---

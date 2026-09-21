@@ -5,7 +5,7 @@ title: "options-monitor: Refactor data/options.py — remove raw DuckDB, delegat
 description: Remove module-level DuckDB connection and raw SQL from options.py; delegate archive queries to TickrakeClient.options_query; re-export intraday functions from intraday.py
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---

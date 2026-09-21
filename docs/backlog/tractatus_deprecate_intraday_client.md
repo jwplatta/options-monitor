@@ -5,7 +5,7 @@ title: "tractatus: Deprecate IntradayClient on TickrakeClient"
 description: Remove intraday/MinIO knowledge from tractatus by deprecating IntradayClient and exposing OptionsQueryClient
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---

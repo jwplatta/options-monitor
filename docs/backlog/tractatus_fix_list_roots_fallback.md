@@ -5,7 +5,7 @@ title: "tractatus: Fix FilesystemClient.list_roots() to fall back to filesystem 
 description: list_roots() only reads tickers.json — if absent or empty, options-monitor shows only SPXW
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---

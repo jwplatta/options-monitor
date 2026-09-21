@@ -10,22 +10,9 @@ import streamlit as st
 from tractatus.tickrake.client import TickrakeClient
 from tractatus.tickrake.config import TickrakeConfig
 
-# Re-export intraday functions for backward compatibility with existing callers.
-# Tabs that import these from data.options will continue to work.
-# Migrate import sites to data.intraday directly as a follow-up cleanup.
-from options_monitor.data.intraday import (
-    IntradayStore,
-    _default_store,
-    find_intraday_updated_at,
-    find_latest_snapshots,
-    list_expirations,
-)
+from options_monitor.data.intraday import IntradayStore, _default_store
 
 __all__ = [
-    # re-exported intraday
-    "find_intraday_updated_at",
-    "find_latest_snapshots",
-    "list_expirations",
     "load_options_snapshot",
     # archive / filesystem
     "list_snapshot_dates",

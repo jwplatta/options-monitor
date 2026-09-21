@@ -123,7 +123,7 @@ class IntradayStore:
                 for obj in page.get("Contents", []):
                     key: str = str(obj["Key"])
                     if key.endswith(".json"):
-                        stem = key[len(prefix):].removesuffix(".json")
+                        stem = key[len(prefix) :].removesuffix(".json")
                         if stem:
                             roots.append(stem)
             return sorted(roots)
@@ -194,5 +194,3 @@ def find_latest_snapshots(
         return {}
     store = _store or _default_store()
     return store.latest_snapshots(symbol, target_start, target_end)
-
-
