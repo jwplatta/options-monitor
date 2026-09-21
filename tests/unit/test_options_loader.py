@@ -500,9 +500,11 @@ def test_parquet_path_for_date_missing_returns_none() -> None:
         minio_access_key="",
         minio_secret_key="",
         s3_bucket="",
-        s3_region="",
+        s3_region="us-east-1",
     )
-    with patch("boto3.client", return_value=MagicMock()):
+    mock_session = MagicMock()
+    mock_session.client.return_value = MagicMock()
+    with patch("boto3.Session", return_value=mock_session):
         archive = ArchiveClient(cfg)
     assert archive.get_parquet_path("SPXW", date(2099, 1, 1)) is None
 

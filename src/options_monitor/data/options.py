@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,8 @@ import streamlit as st
 from tractatus.tickrake.client import TickrakeClient
 from tractatus.tickrake.config import TickrakeConfig
 
-_DUCKDB_CONN = duckdb.connect("/tmp/duckdb_options.db")
+_DUCKDB_PATH = os.getenv("DUCKDB_OPTIONS_PATH", "/tmp/duckdb_options.db")
+_DUCKDB_CONN = duckdb.connect(_DUCKDB_PATH)
 _DUCKDB_CONN.execute("SET memory_limit='4GB'")
 _DUCKDB_CONN.execute("SET threads=2")
 _DUCKDB_CONN.execute("SET preserve_insertion_order=false")
