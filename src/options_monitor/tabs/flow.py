@@ -15,7 +15,7 @@ from options_monitor.calc.flow_tape import compute_flow_tape
 from options_monitor.charts.flow_heatmap import build_flow_heatmap_chart
 from options_monitor.charts.flow_profile import build_flow_profile_chart
 from options_monitor.charts.flow_tape import build_flow_tape_chart
-from options_monitor.data.intraday import list_expirations
+from options_monitor.data.intraday import find_latest_snapshots, list_expirations
 from options_monitor.data.options import (
     find_all_snapshots_for_expiry,
     find_snapshots_for_expiry_on_date,
@@ -354,22 +354,22 @@ def render_flow_tab(options_dir: Path) -> None:
 
     with col_ctrl:
         # Sample date selection.
+        today = date.today()
         sample_dates = list_snapshot_dates(symbol)
-        if not sample_dates:
-            st.error(f"No {symbol} snapshots found.")
-            return
+        if sample_dates:
+            sample_date = st.date_input(
+                "Sample date",
+                value=sample_dates[-1],
+                min_value=sample_dates[0],
+                max_value=today,
+                key="fl_sample_date",
+            )
+        else:
+            # No local archive — default to today (intraday path).
+            sample_date = today
 
-        sample_date = st.date_input(
-            "Sample date",
-            value=sample_dates[-1],
-            min_value=sample_dates[0],
-            max_value=sample_dates[-1],
-            key="fl_sample_date",
-        )
-
-        # Expiration selection — default to 0DTE if available.
+        # Expiration selection — use intraday index for today, archive for past dates.
         all_expiries = list_expirations(symbol)
-        # Filter to expirations that have snapshots on the chosen sample date.
         available_expiries = [e for e in all_expiries if e >= sample_date]
         if not available_expiries:
             st.error("No expirations available for selected date.")
@@ -423,12 +423,12 @@ def render_flow_tab(options_dir: Path) -> None:
 
     contract_filter = _CONTRACT_MAP[contract_label]
 
-    # Route: historical dates use parquet, today uses SQLite + CSV.
+    # Route: historical dates use parquet; today uses intraday MinIO then local CSV fallback.
     preloaded: pd.DataFrame | None = None
     snapshots: list[tuple[datetime, Path]] = []
     spot: float = 0.0
 
-    if sample_date < date.today():
+    if sample_date < today:
         try:
             preloaded = _load_parquet_preloaded(symbol, selected_exp, sample_date)
         except FileNotFoundError as e:
@@ -442,18 +442,39 @@ def render_flow_tab(options_dir: Path) -> None:
             return
         spot = float(spot_series.iloc[-1])
     else:
-        snapshots = find_snapshots_for_expiry_on_date(
+        # Try intraday MinIO first.
+        intraday = find_latest_snapshots(
             symbol,
-            expiry=selected_exp,
-            sample_date=sample_date,
+            start_date=selected_exp,
+            days_out=0,
+            include_0dte=True,
         )
-        if not snapshots:
+        if intraday:
+            uri = intraday.get(selected_exp)
+            if uri:
+                preloaded = load_options_snapshot(uri)
+                preloaded["_ts"] = pd.to_datetime(
+                    preloaded.get("sampled_at", pd.Series(dtype="object")), utc=True
+                )
+                spot_series = pd.to_numeric(preloaded["underlying_price"], errors="coerce").dropna()
+                spot = float(spot_series.iloc[-1]) if not spot_series.empty else 0.0
+
+        # Fall back to local CSV snapshots.
+        if preloaded is None:
+            snapshots = find_snapshots_for_expiry_on_date(
+                symbol,
+                expiry=selected_exp,
+                sample_date=sample_date,
+            )
+            if snapshots:
+                spot = _get_spot(snapshots) or 0.0
+
+        if preloaded is None and not snapshots:
             with col_chart:
                 st.warning(
                     f"No snapshots found for {symbol} expiry {selected_exp} on {sample_date}."
                 )
             return
-        spot = _get_spot(snapshots) or 0.0
         if spot == 0.0:
             with col_chart:
                 st.warning("Could not determine spot price from snapshots.")
