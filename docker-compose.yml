@@ -43,6 +43,7 @@ services:
       - "${HOME}/.aws:/root/.aws:ro"
     environment:
       TICKRAKE_HOME: /tickrake
+      TICKRAKE_DATA_DIR: /tickrake/data
       MINIO_ENDPOINT: "http://minio:9000"
       MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"

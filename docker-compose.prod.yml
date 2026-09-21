@@ -1,0 +1,23 @@
+# Prod compose — connects to the local MinIO instance already running at port 9001.
+# No MinIO service is started here; options-monitor points to host MinIO directly.
+# MinIO API: host:9000 (default), Streamlit: 8501
+services:
+  options-monitor:
+    build: .
+    mem_limit: 5g
+    ports:
+      - "${PORT:-8501}:8501"
+    volumes:
+      - "${TICKRAKE_HOME:-$HOME/.tickrake}:/tickrake:ro"
+      - "${HOME}/.aws:/root/.aws:ro"
+    environment:
+      TICKRAKE_HOME: /tickrake
+      TICKRAKE_DATA_DIR: /tickrake/data
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_REGION: "${S3_REGION:-us-east-1}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
