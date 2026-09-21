@@ -46,6 +46,41 @@ def _filter_snapshot_to_expiry(df: pd.DataFrame, expiry: date) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300, max_entries=20)
+def _pick_expiry_from_parquet(
+    symbol: str,
+    sample_date: date,
+    ref_date: date,
+    target_dte: int,
+    _parquet_dir: str,
+) -> date | None:
+    """Scan a parquet file for distinct expirations and pick closest to target DTE."""
+    parquet_path = (
+        Path(_parquet_dir)
+        / f"{sample_date.year:04d}"
+        / f"{sample_date.month:02d}"
+        / f"{sample_date.day:02d}"
+        / f"{symbol}_samples_{sample_date.isoformat()}.parquet"
+    )
+    if not parquet_path.exists():
+        client = _default_client()
+        result = client.options_archive.get_parquet_path(symbol, sample_date)
+        if result is None:
+            return None
+        parquet_path = result
+
+    try:
+        rows = _DUCKDB_CONN.execute(
+            "SELECT DISTINCT expiration_date FROM read_parquet(?)",
+            [str(parquet_path)],
+        ).fetchall()
+    except Exception:
+        return None
+
+    expirations = [date.fromisoformat(str(r[0])[:10]) for r in rows]
+    return _pick_expiry(expirations, ref_date, target_dte)
+
+
+@st.cache_data(ttl=300, max_entries=20)
 def _load_eod_snapshot_for_expiry(
     symbol: str,
     sample_date: date,
@@ -108,44 +143,78 @@ def _compute_vol_regime_data(
     rows: list[dict[str, object]] = []
 
     for symbol in symbols:
-        # Get current snapshot expirations
+        # Get available historical dates for this symbol
         try:
-            current_snaps = find_latest_snapshots(symbol, today, target_dte + 15)
+            hist_dates = list_snapshot_dates(symbol, client)
         except Exception:
             continue
-
-        if not current_snaps:
+        if not hist_dates:
             continue
 
-        # Pick expiry closest to target DTE
-        expiry = _pick_expiry(list(current_snaps.keys()), today, target_dte)
-        if expiry is None:
-            continue
+        # The "current" snapshot is either today's intraday or the most
+        # recent archived date (handles weekends / holidays gracefully).
+        current_date = hist_dates[-1]  # most recent archived date
 
-        # Load current snapshot
-        snap_uri = current_snaps.get(expiry)
-        if snap_uri is None:
-            # Try nearest available expiry
-            by_dte = sorted(
-                current_snaps.keys(),
-                key=lambda e: abs((e - today).days - target_dte),
+        # Try live intraday first — if available it's fresher
+        current_expiry_df: pd.DataFrame | None = None
+        expiry: date | None = None
+        try:
+            current_snaps = find_latest_snapshots(
+                symbol,
+                today,
+                target_dte + 15,
             )
-            for exp in by_dte:
-                if exp in current_snaps:
-                    expiry = exp
-                    snap_uri = current_snaps[exp]
-                    break
-        if snap_uri is None:
-            continue
-
-        try:
-            current_df = load_options_snapshot(snap_uri)
         except Exception:
-            continue
+            current_snaps = {}
 
-        current_expiry_df = _filter_snapshot_to_expiry(current_df, expiry)
-        if current_expiry_df.empty:
-            continue
+        if current_snaps:
+            expiry = _pick_expiry(
+                list(current_snaps.keys()),
+                today,
+                target_dte,
+            )
+            if expiry is not None:
+                snap_uri = current_snaps.get(expiry)
+                if snap_uri is None:
+                    by_dte = sorted(
+                        current_snaps.keys(),
+                        key=lambda e: abs((e - today).days - target_dte),
+                    )
+                    for exp in by_dte:
+                        if exp in current_snaps:
+                            expiry = exp
+                            snap_uri = current_snaps[exp]
+                            break
+                if snap_uri is not None:
+                    try:
+                        raw = load_options_snapshot(snap_uri)
+                        filtered = _filter_snapshot_to_expiry(raw, expiry)
+                        if not filtered.empty:
+                            current_expiry_df = filtered
+                    except Exception:
+                        pass
+
+        # Fallback: use most recent archived EOD snapshot
+        if current_expiry_df is None:
+            current_date = hist_dates[-1]
+            # We need an expiry — scan the archived parquet for available ones
+            expiry = _pick_expiry_from_parquet(
+                symbol,
+                current_date,
+                today,
+                target_dte,
+                _parquet_dir,
+            )
+            if expiry is None:
+                continue
+            current_expiry_df = _load_eod_snapshot_for_expiry(
+                symbol,
+                current_date,
+                expiry,
+                _parquet_dir,
+            )
+            if current_expiry_df.empty:
+                continue
 
         spot_series = current_expiry_df["underlying_price"].dropna()
         spot = float(spot_series.iloc[0]) if not spot_series.empty else 0.0
@@ -158,22 +227,23 @@ def _compute_vol_regime_data(
             continue
         current_rr = rr_result.rr
 
-        # Load historical data
-        try:
-            hist_dates = list_snapshot_dates(symbol, client)
-        except Exception:
-            hist_dates = []
+        assert expiry is not None  # guaranteed by control flow above
 
+        # Build historical IV and RR series over lookback window
         lookback_start = today - timedelta(days=lookback_days)
-        hist_dates = [d for d in hist_dates if lookback_start <= d < today]
+        lookback_dates = [d for d in hist_dates if lookback_start <= d < today]
 
         hist_ivs: list[float] = []
         hist_rrs: list[float] = []
 
-        for sample_date in hist_dates:
-            hist_df = _load_eod_snapshot_for_expiry(symbol, sample_date, expiry, _parquet_dir)
+        for sample_date in lookback_dates:
+            hist_df = _load_eod_snapshot_for_expiry(
+                symbol,
+                sample_date,
+                expiry,
+                _parquet_dir,
+            )
             if hist_df.empty:
-                # Try finding the nearest expiry available on that date
                 continue
 
             hist_spot_vals = hist_df["underlying_price"].dropna()
