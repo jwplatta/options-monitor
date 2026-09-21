@@ -15,10 +15,10 @@ from options_monitor.calc.flow_tape import compute_flow_tape
 from options_monitor.charts.flow_heatmap import build_flow_heatmap_chart
 from options_monitor.charts.flow_profile import build_flow_profile_chart
 from options_monitor.charts.flow_tape import build_flow_tape_chart
-from options_monitor.data.intraday import list_expirations
 from options_monitor.data.options import (
     find_all_snapshots_for_expiry,
     find_snapshots_for_expiry_on_date,
+    list_expirations_for_window_on_date,
     list_snapshot_dates,
     load_historical_expiry,
     load_options_snapshot,
@@ -367,9 +367,10 @@ def render_flow_tab(options_dir: Path) -> None:
         else:
             sample_date = today
 
-        # Expiration selection — use intraday index for today, archive for past dates.
-        all_expiries = list_expirations(symbol)
-        available_expiries = [e for e in all_expiries if e >= sample_date]
+        # Expiration selection — use local filesystem snapshots on disk.
+        available_expiries = list_expirations_for_window_on_date(
+            symbol, sample_date=sample_date, days_out=60
+        )
         if not available_expiries:
             st.error("No expirations available for selected date.")
             return
@@ -422,7 +423,7 @@ def render_flow_tab(options_dir: Path) -> None:
 
     contract_filter = _CONTRACT_MAP[contract_label]
 
-    # Route: historical dates use parquet; today uses intraday MinIO then local CSV fallback.
+    # Route: historical dates use parquet; today uses local CSV snapshots.
     preloaded: pd.DataFrame | None = None
     snapshots: list[tuple[datetime, Path]] = []
     spot: float = 0.0
