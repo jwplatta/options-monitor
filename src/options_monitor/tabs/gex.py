@@ -28,9 +28,12 @@ from options_monitor.data.options import (
     find_latest_snapshots,
     list_expirations,
     list_expirations_for_window_on_date,
+    list_expirations_from_archive,
     list_snapshot_dates,
     list_snapshot_dates_for_expiry,
     load_historical_snapshot,
+    load_latest_archived_single_expiry,
+    load_latest_archived_window,
     load_options_snapshot,
     parquet_path_for_date,
 )
@@ -78,14 +81,27 @@ def _load_window_snapshot_data(
         days_out=days_out,
         include_0dte=include_0dte,
     )
-    if not snapshots:
-        return None
-    all_opts = pd.concat(
-        [load_options_snapshot(path) for path in snapshots.values()],
-        ignore_index=True,
+    if snapshots:
+        all_opts = pd.concat(
+            [load_options_snapshot(path) for path in snapshots.values()],
+            ignore_index=True,
+        )
+        spot, strike_range = _compute_spot_and_strike_range(all_opts, range_pct)
+        return snapshots, all_opts, spot, strike_range
+
+    # Fallback: load from most recent archived parquet
+    archived = load_latest_archived_window(
+        symbol, start_date=start_date, days_out=days_out, include_0dte=include_0dte
     )
+    if archived is None:
+        return None
+    sampled_at, frames = archived
+    snapshot_map: dict[date, str] = {exp: f"archive:{sampled_at}" for exp in frames}
+    all_opts = pd.concat(frames.values(), ignore_index=True)
     spot, strike_range = _compute_spot_and_strike_range(all_opts, range_pct)
-    return snapshots, all_opts, spot, strike_range
+    ts_ct = sampled_at.astimezone(_CHICAGO).strftime("%Y-%m-%d %H:%M:%S CT")
+    st.caption(f"Using archived data from {ts_ct}")
+    return snapshot_map, all_opts, spot, strike_range
 
 
 def _load_single_expiry_snapshot_data(
@@ -100,15 +116,27 @@ def _load_single_expiry_snapshot_data(
         days_out=0,
         include_0dte=True,
     )
-    if not single_snapshots:
-        return None
-    single_opts = load_options_snapshot(next(iter(single_snapshots.values())))
+    if single_snapshots:
+        single_opts = load_options_snapshot(next(iter(single_snapshots.values())))
+    else:
+        # Fallback: load from most recent archived parquet
+        result = load_latest_archived_single_expiry(symbol, selected_exp)
+        if result is None:
+            return None
+        sampled_at, single_opts = result
+        if single_opts.empty:
+            return None
+        ts_ct = sampled_at.astimezone(_CHICAGO).strftime("%Y-%m-%d %H:%M:%S CT")
+        st.caption(f"Using archived data from {ts_ct}")
     spot, strike_range = _compute_spot_and_strike_range(single_opts, range_pct)
     return single_opts, spot, strike_range
 
 
 def _select_single_expiry(symbol: str, today: date, options_dir: Path) -> str | None:
-    available_exps_desc = sorted(list_expirations(symbol), reverse=True)
+    available_exps_desc = sorted(
+        list_expirations(symbol) or list_expirations_from_archive(symbol),
+        reverse=True,
+    )
     if not available_exps_desc:
         return None
 

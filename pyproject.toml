@@ -14,7 +14,7 @@ dependencies = [
     "duckdb>=1.5.4",
     "pytz>=2026.2",
     "boto3>=1.34",
-    "tractatus @ git+ssh://git@github.com/jwplatta/tractatus.git@main",
+    "tractatus @ git+https://github.com/jwplatta/tractatus.git@main",
 ]
 
 [project.scripts]

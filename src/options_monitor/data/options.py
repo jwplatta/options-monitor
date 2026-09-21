@@ -280,6 +280,102 @@ def load_historical_sample_window(
     return df
 
 
+@st.cache_data(ttl=300)
+def load_latest_archived_window(
+    symbol: str,
+    start_date: date,
+    days_out: int,
+    include_0dte: bool = True,
+    _client: TickrakeClient | None = None,
+) -> tuple[datetime, dict[date, pd.DataFrame]] | None:
+    """Load the most recent archived snapshot for expirations in a window.
+
+    The expiry window is anchored on *start_date* (typically today), not the
+    archive's sample date.  This means weekends/holidays naturally have no 0DTE
+    expiry and the toggle behaves identically to the live path.
+
+    Returns (latest_sampled_at, {expiry: DataFrame}) or None if no archive exists.
+    """
+    client = _client or _default_client()
+    sample_dates = client.options_filesystem.list_sample_dates(symbol)
+    if not sample_dates:
+        return None
+    sample_date = sample_dates[-1]
+    ppath = client.options_archive.get_parquet_path(symbol, sample_date)
+    if ppath is None:
+        return None
+    target_start = start_date if include_0dte else start_date + timedelta(days=1)
+    target_end = start_date + timedelta(days=days_out)
+    if target_end < target_start:
+        return None
+    # Load each expiry at its own latest sampled_at
+    per_expiry_latest = _DUCKDB_CONN.execute(
+        "SELECT expiration_date, MAX(sampled_at) FROM read_parquet(?)"
+        " WHERE expiration_date BETWEEN ? AND ?"
+        " GROUP BY expiration_date",
+        [str(ppath), target_start.isoformat(), target_end.isoformat()],
+    ).fetchall()
+    if not per_expiry_latest:
+        return None
+    global_latest = max(datetime.fromisoformat(str(r[1])) for r in per_expiry_latest)
+    frames: dict[date, pd.DataFrame] = {}
+    for row in per_expiry_latest:
+        expiry = date.fromisoformat(str(row[0]))
+        ts = datetime.fromisoformat(str(row[1]))
+        df = load_historical_snapshot(symbol, expiry, ts, ppath)
+        if not df.empty:
+            frames[expiry] = df
+    if not frames:
+        return None
+    return global_latest, frames
+
+
+@st.cache_data(ttl=300)
+def list_expirations_from_archive(
+    symbol: str,
+    _client: TickrakeClient | None = None,
+) -> list[date]:
+    """Return expirations from the most recent archived parquet."""
+    client = _client or _default_client()
+    sample_dates = client.options_filesystem.list_sample_dates(symbol)
+    if not sample_dates:
+        return []
+    sample_date = sample_dates[-1]
+    ppath = client.options_archive.get_parquet_path(symbol, sample_date)
+    if ppath is None:
+        return []
+    rows = _DUCKDB_CONN.execute(
+        "SELECT DISTINCT expiration_date FROM read_parquet(?)"
+        " WHERE expiration_date >= ? ORDER BY expiration_date",
+        [str(ppath), sample_date.isoformat()],
+    ).fetchall()
+    return [date.fromisoformat(str(r[0])) for r in rows]
+
+
+@st.cache_data(ttl=300)
+def load_latest_archived_single_expiry(
+    symbol: str,
+    expiry: date,
+    _client: TickrakeClient | None = None,
+) -> tuple[datetime, pd.DataFrame] | None:
+    """Load the latest archived snapshot for a single expiry.
+
+    Returns (sampled_at, DataFrame) or None if no archive exists.
+    """
+    client = _client or _default_client()
+    sample_dates = client.options_filesystem.list_sample_dates(symbol)
+    if not sample_dates:
+        return None
+    sample_date = sample_dates[-1]
+    ppath = client.options_archive.get_parquet_path(symbol, sample_date)
+    if ppath is None:
+        return None
+    times = find_historical_snapshot_times(expiry, ppath)
+    if not times:
+        return None
+    return times[-1], load_historical_snapshot(symbol, expiry, times[-1], ppath)
+
+
 @st.cache_data(ttl=300, max_entries=5)
 def load_historical_expiry_lookback(
     symbol: str,
