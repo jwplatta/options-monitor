@@ -9,34 +9,36 @@ from options_monitor.calc.vol_regime import (
     VolRegimePoint,
     build_vol_regime_row,
     compute_atm_iv,
-    zscore,
+    percentile_rank,
 )
 
 
-class TestZscore:
-    def test_basic(self) -> None:
-        result = zscore(10.0, [8.0, 9.0, 10.0, 11.0, 12.0])
+class TestPercentileRank:
+    def test_at_median(self) -> None:
+        result = percentile_rank(10.0, [8.0, 9.0, 10.0, 11.0, 12.0])
         assert result is not None
-        assert result == pytest.approx(0.0, abs=0.01)
+        assert result == pytest.approx(60.0)  # 3 of 5 values ≤ 10
 
-    def test_positive_zscore(self) -> None:
-        result = zscore(12.0, [8.0, 9.0, 10.0, 11.0, 12.0])
+    def test_at_max(self) -> None:
+        result = percentile_rank(12.0, [8.0, 9.0, 10.0, 11.0, 12.0])
         assert result is not None
-        assert result > 0
+        assert result == pytest.approx(100.0)
 
-    def test_negative_zscore(self) -> None:
-        result = zscore(7.0, [8.0, 9.0, 10.0, 11.0, 12.0])
+    def test_below_min(self) -> None:
+        result = percentile_rank(7.0, [8.0, 9.0, 10.0, 11.0, 12.0])
         assert result is not None
-        assert result < 0
+        assert result == pytest.approx(0.0)
 
     def test_insufficient_data(self) -> None:
-        assert zscore(10.0, [9.0, 11.0]) is None
+        assert percentile_rank(10.0, [9.0, 11.0]) is None
 
-    def test_zero_std(self) -> None:
-        assert zscore(5.0, [5.0, 5.0, 5.0, 5.0]) is None
+    def test_all_same(self) -> None:
+        result = percentile_rank(5.0, [5.0, 5.0, 5.0, 5.0])
+        assert result is not None
+        assert result == pytest.approx(100.0)  # all ≤ current
 
     def test_nan_filtered(self) -> None:
-        result = zscore(10.0, [8.0, float("nan"), 10.0, 12.0])
+        result = percentile_rank(10.0, [8.0, float("nan"), 10.0, 12.0])
         assert result is not None
 
 
@@ -75,8 +77,8 @@ class TestBuildVolRegimeRow:
         result = build_vol_regime_row(20.0, 0.0, hist_ivs, hist_rrs)
         assert result is not None
         assert isinstance(result, VolRegimePoint)
-        assert result.iv_zscore == pytest.approx(0.0, abs=0.01)
-        assert result.rr_zscore == pytest.approx(0.0, abs=0.01)
+        assert result.iv_rank == pytest.approx(60.0)  # 3 of 5 ≤ 20
+        assert result.rr_rank == pytest.approx(60.0)  # 3 of 5 ≤ 0
 
     def test_insufficient_history(self) -> None:
         assert build_vol_regime_row(20.0, 0.0, [19.0], [1.0]) is None
