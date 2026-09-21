@@ -227,9 +227,9 @@ def _compute_vol_regime_data(
             continue
         current_rr = rr_result.rr
 
-        assert expiry is not None  # guaranteed by control flow above
-
-        # Build historical IV and RR series over lookback window
+        # Build historical IV and RR series over lookback window.
+        # Each historical date picks its own nearest-to-target-DTE expiry
+        # (the same fixed expiry often didn't exist weeks ago).
         lookback_start = today - timedelta(days=lookback_days)
         lookback_dates = [d for d in hist_dates if lookback_start <= d < today]
 
@@ -237,10 +237,20 @@ def _compute_vol_regime_data(
         hist_rrs: list[float] = []
 
         for sample_date in lookback_dates:
+            hist_expiry = _pick_expiry_from_parquet(
+                symbol,
+                sample_date,
+                sample_date,
+                target_dte,
+                _parquet_dir,
+            )
+            if hist_expiry is None:
+                continue
+
             hist_df = _load_eod_snapshot_for_expiry(
                 symbol,
                 sample_date,
-                expiry,
+                hist_expiry,
                 _parquet_dir,
             )
             if hist_df.empty:
@@ -266,15 +276,15 @@ def _compute_vol_regime_data(
         rows.append(
             {
                 "symbol": symbol,
-                "iv_zscore": point.iv_zscore,
-                "rr_zscore": point.rr_zscore,
+                "iv_rank": point.iv_rank,
+                "rr_rank": point.rr_rank,
                 "current_iv": point.current_iv,
                 "current_rr": point.current_rr,
             }
         )
 
     if not rows:
-        return pd.DataFrame(columns=["symbol", "iv_zscore", "rr_zscore"])
+        return pd.DataFrame(columns=["symbol", "iv_rank", "rr_rank"])
     return pd.DataFrame(rows)
 
 
@@ -327,8 +337,6 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     # Summary table
     with st.expander("Data Table"):
         st.dataframe(
-            data.set_index("symbol")[["iv_zscore", "rr_zscore", "current_iv", "current_rr"]].round(
-                2
-            ),
+            data.set_index("symbol")[["iv_rank", "rr_rank", "current_iv", "current_rr"]].round(2),
             use_container_width=True,
         )

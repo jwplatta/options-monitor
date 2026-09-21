@@ -1,7 +1,7 @@
 # TODO: Extract pure calc functions to tractatus.calc.vol_regime
 # These functions are intentionally free of I/O and Streamlit dependencies
 # so they can move to the tractatus shared library later.
-"""Vol regime z-score computation for IV and risk reversal."""
+"""Vol regime percentile-rank computation for IV and risk reversal."""
 
 from __future__ import annotations
 
@@ -16,28 +16,30 @@ import pandas as pd
 class VolRegimePoint(NamedTuple):
     """Single ticker's position on the vol regime scatter."""
 
-    iv_zscore: float
-    rr_zscore: float
+    iv_rank: float  # 0–100 percentile
+    rr_rank: float  # 0–100 percentile
     current_iv: float
     current_rr: float
     iv_mean: float
     rr_mean: float
 
 
-def zscore(current: float, history: Sequence[float], min_obs: int = 3) -> float | None:
-    """Compute z-score of *current* relative to *history*.
+def percentile_rank(
+    current: float,
+    history: Sequence[float],
+    min_obs: int = 3,
+) -> float | None:
+    """Percentile rank (0–100) of *current* within *history*.
 
-    Returns None when there are fewer than *min_obs* historical observations
-    or when the standard deviation is zero.
+    Returns the percentage of historical values that are ≤ current.
+    0 = current is at the historical minimum, 100 = at or above the max.
+    Returns None when there are fewer than *min_obs* finite observations.
     """
     vals = [v for v in history if math.isfinite(v)]
     if len(vals) < min_obs:
         return None
-    mean = float(np.mean(vals))
-    std = float(np.std(vals, ddof=1))
-    if std == 0.0:
-        return None
-    return (current - mean) / std
+    count_le = sum(1 for v in vals if v <= current)
+    return 100.0 * count_le / len(vals)
 
 
 def compute_atm_iv(snapshot: pd.DataFrame, spot: float) -> float | None:
@@ -89,19 +91,19 @@ def build_vol_regime_row(
 ) -> VolRegimePoint | None:
     """Build a single ticker's vol-regime point from current and historical values.
 
-    Returns None if either z-score cannot be computed (insufficient history).
+    Returns None if either percentile rank cannot be computed (insufficient history).
     """
-    iv_z = zscore(current_iv, hist_ivs)
-    rr_z = zscore(current_rr, hist_rrs)
-    if iv_z is None or rr_z is None:
+    iv_pct = percentile_rank(current_iv, hist_ivs)
+    rr_pct = percentile_rank(current_rr, hist_rrs)
+    if iv_pct is None or rr_pct is None:
         return None
 
     iv_vals = [v for v in hist_ivs if math.isfinite(v)]
     rr_vals = [v for v in hist_rrs if math.isfinite(v)]
 
     return VolRegimePoint(
-        iv_zscore=iv_z,
-        rr_zscore=rr_z,
+        iv_rank=iv_pct,
+        rr_rank=rr_pct,
         current_iv=current_iv,
         current_rr=current_rr,
         iv_mean=float(np.mean(iv_vals)) if iv_vals else 0.0,
