@@ -15,10 +15,10 @@ from options_monitor.calc.flow_tape import compute_flow_tape
 from options_monitor.charts.flow_heatmap import build_flow_heatmap_chart
 from options_monitor.charts.flow_profile import build_flow_profile_chart
 from options_monitor.charts.flow_tape import build_flow_tape_chart
+from options_monitor.data.intraday import list_expirations
 from options_monitor.data.options import (
     find_all_snapshots_for_expiry,
     find_snapshots_for_expiry_on_date,
-    list_expirations,
     list_snapshot_dates,
     load_historical_expiry,
     load_options_snapshot,

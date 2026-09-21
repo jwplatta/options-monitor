@@ -14,13 +14,15 @@ from tractatus.tickrake.client import TickrakeClient
 from tractatus.tickrake.config import TickrakeConfig
 from tractatus.tickrake.options.filesystem import parse_snapshot_filename
 
-from options_monitor.data.intraday import IntradayStore
+from options_monitor.data.intraday import (
+    IntradayStore,
+    find_latest_snapshots,
+    list_expirations,
+)
 from options_monitor.data.options import (
     find_all_snapshots_for_expiry,
     find_historical_snapshot_times,
-    find_latest_snapshots,
     find_snapshots_for_expiry_on_date,
-    list_expirations,
     list_expirations_for_window_on_date,
     list_snapshot_dates,
     list_snapshot_dates_for_expiry,
