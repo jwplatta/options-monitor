@@ -5,7 +5,7 @@ title: "options-monitor: Create data/intraday.py — MinIO access module"
 description: Extract all MinIO/boto3 intraday logic from data/options.py into a dedicated module owned by options-monitor
 created: 2026-09-21
 updated: 2026-09-21
-status: not-started
+status: complete
 priority: high
 source: claude/options-monitor
 ---
