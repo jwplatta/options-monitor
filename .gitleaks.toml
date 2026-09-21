@@ -1,0 +1,9 @@
+[extend]
+# Use the default gitleaks rules as a base.
+
+[allowlist]
+description = "Global allowlist"
+regexTarget = "match"
+regexes = [
+    '''fsv_include_0dte''',
+]

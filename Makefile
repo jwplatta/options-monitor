@@ -1,8 +1,8 @@
-.PHONY: check lint format typecheck test all
+.PHONY: check lint format typecheck test secrets all
 
 all: check  ## Run all checks (default)
 
-check: lint format typecheck test  ## Run lint, format, typecheck, and tests
+check: lint format typecheck test secrets  ## Run lint, format, typecheck, tests, and secrets scan
 
 lint:  ## Run ruff linter
 	uv run ruff check src tests
@@ -15,6 +15,9 @@ typecheck:  ## Run mypy type checker
 
 test:  ## Run unit tests
 	uv run pytest tests/unit/ -q
+
+secrets:  ## Scan for leaked secrets
+	gitleaks detect --source . -v
 
 fix:  ## Auto-fix lint and format issues
 	uv run ruff check --fix src tests
