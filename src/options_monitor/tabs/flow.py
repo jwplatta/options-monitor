@@ -354,22 +354,21 @@ def render_flow_tab(options_dir: Path) -> None:
 
     with col_ctrl:
         # Sample date selection.
+        today = date.today()
         sample_dates = list_snapshot_dates(symbol)
-        if not sample_dates:
-            st.error(f"No {symbol} snapshots found.")
-            return
+        if sample_dates:
+            sample_date = st.date_input(
+                "Sample date",
+                value=today,
+                min_value=sample_dates[0],
+                max_value=today,
+                key="fl_sample_date",
+            )
+        else:
+            sample_date = today
 
-        sample_date = st.date_input(
-            "Sample date",
-            value=sample_dates[-1],
-            min_value=sample_dates[0],
-            max_value=sample_dates[-1],
-            key="fl_sample_date",
-        )
-
-        # Expiration selection — default to 0DTE if available.
+        # Expiration selection — use intraday index for today, archive for past dates.
         all_expiries = list_expirations(symbol)
-        # Filter to expirations that have snapshots on the chosen sample date.
         available_expiries = [e for e in all_expiries if e >= sample_date]
         if not available_expiries:
             st.error("No expirations available for selected date.")
@@ -423,12 +422,12 @@ def render_flow_tab(options_dir: Path) -> None:
 
     contract_filter = _CONTRACT_MAP[contract_label]
 
-    # Route: historical dates use parquet, today uses SQLite + CSV.
+    # Route: historical dates use parquet; today uses intraday MinIO then local CSV fallback.
     preloaded: pd.DataFrame | None = None
     snapshots: list[tuple[datetime, Path]] = []
     spot: float = 0.0
 
-    if sample_date < date.today():
+    if sample_date < today:
         try:
             preloaded = _load_parquet_preloaded(symbol, selected_exp, sample_date)
         except FileNotFoundError as e:
@@ -442,6 +441,7 @@ def render_flow_tab(options_dir: Path) -> None:
             return
         spot = float(spot_series.iloc[-1])
     else:
+        # Today: use local CSV snapshots (full time series needed for flow computation).
         snapshots = find_snapshots_for_expiry_on_date(
             symbol,
             expiry=selected_exp,
@@ -459,7 +459,20 @@ def render_flow_tab(options_dir: Path) -> None:
                 st.warning("Could not determine spot price from snapshots.")
             return
 
+    # Show latest snapshot timestamp as caption.
+    latest_ts: datetime | None = None
+    if preloaded is not None:
+        ts_col = pd.to_datetime(preloaded.get("_ts", pd.Series(dtype="object")), utc=True).dropna()
+        if not ts_col.empty:
+            latest_ts = ts_col.max().to_pydatetime()
+    elif snapshots:
+        latest_ts = max(ts for ts, _ in snapshots)
+
     with col_chart:
+        if latest_ts is not None:
+            latest_ct = _to_chicago(latest_ts)
+            st.caption(f"Latest snapshot: {latest_ct.strftime('%Y-%m-%d %H:%M:%S CT')}")
+
         active_view = str(
             st.segmented_control(
                 "Flow View",
