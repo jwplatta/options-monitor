@@ -1,17 +1,54 @@
+# Dev compose — uses non-default ports to avoid conflicts with prod (quant-infra).
+# MinIO API: 9002, MinIO Console: 9003, Streamlit: 8502
 services:
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY:-minioadmin}"
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/${MINIO_BUCKET:-tickrake-intraday};
+      exit 0;
+      "
+
   options-monitor:
     build: .
     mem_limit: 5g
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
     ports:
-      - "${PORT:-8501}:8501"
+      - "${PORT:-8502}:8501"
     volumes:
       - "${TICKRAKE_HOME:-$HOME/.tickrake}:/tickrake:ro"
       - "${HOME}/.aws:/root/.aws:ro"
     environment:
       TICKRAKE_HOME: /tickrake
-      MINIO_ENDPOINT: "http://host.docker.internal:9000"
+      MINIO_ENDPOINT: "http://minio:9000"
       MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
       S3_BUCKET: "${S3_BUCKET:-}"
       S3_REGION: "${S3_REGION:-us-east-1}"
+
+volumes:
+  minio-data:

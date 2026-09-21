@@ -195,10 +195,18 @@ def test_gex_view_does_not_touch_history_snapshot_loader(monkeypatch, tmp_path: 
     )
     history_loader_called: list[str] = []
 
+    from datetime import datetime
+
     monkeypatch.setattr(
         gamma_map,
         "_load_window_snapshot_data",
-        lambda **kwargs: ({date(2026, 4, 18): tmp_path / "snap.csv"}, sample_df, 5000.0, 250),
+        lambda **kwargs: (
+            sample_df,
+            5000.0,
+            250,
+            datetime(2026, 4, 15, 15, 0, 0),
+            False,
+        ),
     )
     monkeypatch.setattr(
         gamma_map,

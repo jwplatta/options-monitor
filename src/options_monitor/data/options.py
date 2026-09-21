@@ -2,41 +2,50 @@
 
 from __future__ import annotations
 
-import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
-import duckdb
 import pandas as pd
 import streamlit as st
 from tractatus.tickrake.client import TickrakeClient
 from tractatus.tickrake.config import TickrakeConfig
 
-_DUCKDB_PATH = os.getenv("DUCKDB_OPTIONS_PATH", "/tmp/duckdb_options.db")
-_DUCKDB_CONN = duckdb.connect(_DUCKDB_PATH)
-_DUCKDB_CONN.execute("SET memory_limit='4GB'")
-_DUCKDB_CONN.execute("SET threads=2")
-_DUCKDB_CONN.execute("SET preserve_insertion_order=false")
-_DUCKDB_CONN.execute("SET temp_directory='/tmp/duckdb_swap'")
+# Re-export intraday functions for backward compatibility with existing callers.
+# Tabs that import these from data.options will continue to work.
+# Migrate import sites to data.intraday directly as a follow-up cleanup.
+from options_monitor.data.intraday import (
+    IntradayStore,
+    _default_store,
+    find_intraday_updated_at,
+    find_latest_snapshots,
+    list_expirations,
+)
 
-_OPTIONS_DTYPES: dict[str, Any] = {
-    "strike": "float64",
-    "open_interest": "float64",
-    "gamma": "float64",
-    "delta": "float64",
-    "theta": "float64",
-    "vega": "float64",
-    "theoretical_volatility": "float64",
-    "underlying_price": "float64",
-    "volatility": "float64",
-    "mark": "float64",
-    "bid": "float64",
-    "ask": "float64",
-    "last": "float64",
-    "last_size": "float64",
-    "total_volume": "float64",
-}
+__all__ = [
+    # re-exported intraday
+    "find_intraday_updated_at",
+    "find_latest_snapshots",
+    "list_expirations",
+    "load_options_snapshot",
+    # archive / filesystem
+    "list_snapshot_dates",
+    "list_snapshot_dates_for_expiry",
+    "find_all_snapshots_for_expiry",
+    "find_snapshots_for_expiry_on_date",
+    "list_expirations_for_window_on_date",
+    "parquet_path_for_date",
+    # historical archive query wrappers
+    "find_historical_snapshot_times",
+    "load_historical_snapshot",
+    "load_historical_expiry",
+    "load_historical_lookback",
+    "load_historical_sample_window",
+    "load_historical_expiry_lookback",
+    # compound archive helpers
+    "load_latest_archived_window",
+    "list_expirations_from_archive",
+    "load_latest_archived_single_expiry",
+]
 
 _OPTIONS_PROVIDER = "schwab"
 
@@ -45,14 +54,33 @@ def _default_client() -> TickrakeClient:
     return TickrakeClient(TickrakeConfig.from_env())
 
 
-@st.cache_data(ttl=300)
-def list_expirations(
-    symbol: str,
-    _client: TickrakeClient | None = None,
-) -> list[date]:
-    """Return sorted list of expiration dates from the live intraday index."""
-    client = _client or _default_client()
-    return client.options_intraday.list_expirations(symbol)  # type: ignore[no-any-return]
+# ---------------------------------------------------------------------------
+# Intraday snapshot loader — handles s3:// URIs and local paths
+# ---------------------------------------------------------------------------
+
+
+@st.cache_data(ttl=30)
+def load_options_snapshot(
+    path_or_uri: Path | str,
+    _store: IntradayStore | None = None,
+) -> pd.DataFrame:
+    """Load a single options snapshot from a local path or s3:// URI."""
+    if isinstance(path_or_uri, str) and path_or_uri.startswith("s3://"):
+        store = _store or _default_store()
+        return store.fetch_csv(path_or_uri)
+    path = Path(path_or_uri) if isinstance(path_or_uri, str) else path_or_uri
+    if not path.exists():
+        raise FileNotFoundError(f"Options snapshot not found: {path}")
+    from tractatus.tickrake.options.queries import OPTIONS_DTYPES
+
+    df = pd.read_csv(path, dtype=OPTIONS_DTYPES)
+    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Filesystem scanning — delegates to TickrakeClient.options_filesystem
+# ---------------------------------------------------------------------------
 
 
 @st.cache_data(ttl=300)
@@ -74,23 +102,6 @@ def list_snapshot_dates_for_expiry(
     """Return sorted list of sample dates with snapshots for the given expiry."""
     client = _client or _default_client()
     return client.options_filesystem.list_sample_dates_for_expiry(symbol, expiry)  # type: ignore[no-any-return]
-
-
-@st.cache_data(ttl=30)
-def find_latest_snapshots(
-    symbol: str,
-    start_date: date,
-    days_out: int,
-    include_0dte: bool = True,
-    _client: TickrakeClient | None = None,
-) -> dict[date, str]:
-    """Return {expiry_date: s3_uri} for expirations in the intraday window."""
-    target_start = start_date if include_0dte else start_date + timedelta(days=1)
-    target_end = start_date + timedelta(days=days_out)
-    if target_end < target_start:
-        return {}
-    client = _client or _default_client()
-    return client.options_intraday.latest_snapshots(symbol, target_start, target_end)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=30)
@@ -136,7 +147,7 @@ def list_expirations_for_window_on_date(
 
 
 # ---------------------------------------------------------------------------
-# Parquet / DuckDB access — historical dates only (sample_date < today)
+# Parquet path resolution — delegates to TickrakeClient.options_archive
 # ---------------------------------------------------------------------------
 
 
@@ -154,51 +165,46 @@ def parquet_path_for_date(
     return client.options_archive.get_parquet_path(symbol, sample_date)  # type: ignore[no-any-return]
 
 
+# ---------------------------------------------------------------------------
+# Historical parquet queries — delegates to TickrakeClient.options_query
+# ---------------------------------------------------------------------------
+
+
 @st.cache_data(ttl=300)
-def find_historical_snapshot_times(expiry: date, parquet_path: Path) -> list[datetime]:
+def find_historical_snapshot_times(
+    expiry: date,
+    parquet_path: Path,
+    _client: TickrakeClient | None = None,
+) -> list[datetime]:
     """Return sorted distinct sampled_at datetimes for an expiry from a parquet file."""
-    expiry_str = expiry.isoformat()
-    result = _DUCKDB_CONN.execute(
-        "SELECT DISTINCT sampled_at FROM read_parquet(?)"
-        " WHERE expiration_date = ? ORDER BY sampled_at",
-        [str(parquet_path), expiry_str],
-    ).fetchall()
-    return [datetime.fromisoformat(str(row[0])) for row in result]
+    client = _client or _default_client()
+    return client.options_query.list_snapshot_times(parquet_path, expiry)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300, max_entries=10)
 def load_historical_snapshot(
-    symbol: str, expiry: date, sampled_at: datetime, parquet_path: Path
+    symbol: str,
+    expiry: date,
+    sampled_at: datetime,
+    parquet_path: Path,
+    _client: TickrakeClient | None = None,
 ) -> pd.DataFrame:
     """Load a single snapshot for one expiry and sampled_at from a parquet file."""
-    expiry_str = expiry.isoformat()
-    sampled_at_str = sampled_at.isoformat()
-    df = _DUCKDB_CONN.execute(
-        "SELECT * FROM read_parquet(?)"
-        " WHERE expiration_date = ?"
-        " AND CAST(sampled_at AS TIMESTAMPTZ) = CAST(? AS TIMESTAMPTZ)",
-        [str(parquet_path), expiry_str, sampled_at_str],
-    ).df()
-    df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
-    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
-    df["contract_type"] = df["contract_type"].str.upper()
-    return df
+    client = _client or _default_client()
+    return client.options_query.load_snapshot(parquet_path, expiry, sampled_at)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300, max_entries=10)
 def load_historical_expiry(
-    symbol: str, expiry: date, sample_date: date, parquet_path: Path
+    symbol: str,
+    expiry: date,
+    sample_date: date,
+    parquet_path: Path,
+    _client: TickrakeClient | None = None,
 ) -> pd.DataFrame:
     """Load all snapshots for one expiry on one historical date from a parquet file."""
-    expiry_str = expiry.isoformat()
-    df = _DUCKDB_CONN.execute(
-        "SELECT * FROM read_parquet(?) WHERE expiration_date = ? ORDER BY sampled_at",
-        [str(parquet_path), expiry_str],
-    ).df()
-    df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
-    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
-    df["contract_type"] = df["contract_type"].str.upper()
-    return df
+    client = _client or _default_client()
+    return client.options_query.load_expiry(parquet_path, expiry)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300, max_entries=5)
@@ -207,38 +213,11 @@ def load_historical_lookback(
     parquet_glob: str,
     expiry_range: tuple[date, date],
     interval_minutes: int,
+    _client: TickrakeClient | None = None,
 ) -> pd.DataFrame:
     """Load downsampled historical data across multiple parquet files via DuckDB glob."""
-    start_str = expiry_range[0].isoformat()
-    end_str = expiry_range[1].isoformat()
-    query = f"""
-        WITH bucketed AS (
-            SELECT *,
-                epoch_ms(
-                    CAST(floor(epoch_ms(sampled_at) / ({interval_minutes} * 60000))
-                    * ({interval_minutes} * 60000) AS BIGINT)
-                ) AS interval_bucket
-            FROM read_parquet('{parquet_glob}')
-            WHERE expiration_date BETWEEN '{start_str}' AND '{end_str}'
-        ),
-        ranked AS (
-            SELECT *,
-                ROW_NUMBER() OVER (
-                    PARTITION BY interval_bucket, expiration_date, strike, contract_type
-                    ORDER BY sampled_at DESC
-                ) AS rn
-            FROM bucketed
-        )
-        SELECT * EXCLUDE (interval_bucket, rn)
-        FROM ranked
-        WHERE rn = 1
-        ORDER BY sampled_at, expiration_date
-    """
-    df = _DUCKDB_CONN.execute(query).df()
-    df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
-    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
-    df["contract_type"] = df["contract_type"].str.upper()
-    return df
+    client = _client or _default_client()
+    return client.options_query.load_lookback(parquet_glob, expiry_range, interval_minutes)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300, max_entries=5)
@@ -247,39 +226,29 @@ def load_historical_sample_window(
     parquet_glob: str,
     sample_start: date,
     interval_minutes: int,
+    _client: TickrakeClient | None = None,
 ) -> pd.DataFrame:
     """Load downsampled historical data across parquet files filtered by sample date."""
-    start_str = sample_start.isoformat()
-    query = f"""
-        WITH bucketed AS (
-            SELECT sampled_at, strike, volatility, open_interest,
-                   underlying_price, expiration_date, contract_type,
-                epoch_ms(
-                    CAST(floor(epoch_ms(sampled_at) / ({interval_minutes} * 60000))
-                    * ({interval_minutes} * 60000) AS BIGINT)
-                ) AS interval_bucket
-            FROM read_parquet('{parquet_glob}')
-            WHERE CAST(sampled_at AS TIMESTAMPTZ) >= TIMESTAMPTZ '{start_str}'
-        ),
-        ranked AS (
-            SELECT *,
-                ROW_NUMBER() OVER (
-                    PARTITION BY interval_bucket, expiration_date, strike, contract_type
-                    ORDER BY sampled_at DESC
-                ) AS rn
-            FROM bucketed
-        )
-        SELECT sampled_at, strike, volatility, open_interest,
-               underlying_price, expiration_date, contract_type
-        FROM ranked
-        WHERE rn = 1
-        ORDER BY sampled_at, expiration_date
-    """
-    df = _DUCKDB_CONN.execute(query).df()
-    df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
-    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
-    df["contract_type"] = df["contract_type"].str.upper()
-    return df
+    client = _client or _default_client()
+    return client.options_query.load_sample_window(parquet_glob, sample_start, interval_minutes)  # type: ignore[no-any-return]
+
+
+@st.cache_data(ttl=300, max_entries=5)
+def load_historical_expiry_lookback(
+    symbol: str,
+    expiry: date,
+    parquet_glob: str,
+    interval_minutes: int,
+    _client: TickrakeClient | None = None,
+) -> pd.DataFrame:
+    """Load downsampled data for a single expiry across multiple parquet files."""
+    client = _client or _default_client()
+    return client.options_query.load_expiry_lookback(parquet_glob, expiry, interval_minutes)  # type: ignore[no-any-return]
+
+
+# ---------------------------------------------------------------------------
+# Compound archive helpers — orchestrate archive + query clients
+# ---------------------------------------------------------------------------
 
 
 @st.cache_data(ttl=300)
@@ -310,21 +279,13 @@ def load_latest_archived_window(
     target_end = start_date + timedelta(days=days_out)
     if target_end < target_start:
         return None
-    # Load each expiry at its own latest sampled_at
-    per_expiry_latest = _DUCKDB_CONN.execute(
-        "SELECT expiration_date, MAX(sampled_at) FROM read_parquet(?)"
-        " WHERE expiration_date BETWEEN ? AND ?"
-        " GROUP BY expiration_date",
-        [str(ppath), target_start.isoformat(), target_end.isoformat()],
-    ).fetchall()
+    per_expiry_latest = client.options_query.latest_window(ppath, target_start, target_end)
     if not per_expiry_latest:
         return None
-    global_latest = max(datetime.fromisoformat(str(r[1])) for r in per_expiry_latest)
+    global_latest = max(ts for _, ts in per_expiry_latest)
     frames: dict[date, pd.DataFrame] = {}
-    for row in per_expiry_latest:
-        expiry = date.fromisoformat(str(row[0]))
-        ts = datetime.fromisoformat(str(row[1]))
-        df = load_historical_snapshot(symbol, expiry, ts, ppath)
+    for expiry, ts in per_expiry_latest:
+        df = client.options_query.load_snapshot(ppath, expiry, ts)
         if not df.empty:
             frames[expiry] = df
     if not frames:
@@ -346,12 +307,7 @@ def list_expirations_from_archive(
     ppath = client.options_archive.get_parquet_path(symbol, sample_date)
     if ppath is None:
         return []
-    rows = _DUCKDB_CONN.execute(
-        "SELECT DISTINCT expiration_date FROM read_parquet(?)"
-        " WHERE expiration_date >= ? ORDER BY expiration_date",
-        [str(ppath), sample_date.isoformat()],
-    ).fetchall()
-    return [date.fromisoformat(str(r[0])) for r in rows]
+    return client.options_query.list_expirations(ppath, sample_date)  # type: ignore[no-any-return]
 
 
 @st.cache_data(ttl=300)
@@ -372,63 +328,7 @@ def load_latest_archived_single_expiry(
     ppath = client.options_archive.get_parquet_path(symbol, sample_date)
     if ppath is None:
         return None
-    times = find_historical_snapshot_times(expiry, ppath)
+    times = client.options_query.list_snapshot_times(ppath, expiry)
     if not times:
         return None
-    return times[-1], load_historical_snapshot(symbol, expiry, times[-1], ppath)
-
-
-@st.cache_data(ttl=300, max_entries=5)
-def load_historical_expiry_lookback(
-    symbol: str,
-    expiry: date,
-    parquet_glob: str,
-    interval_minutes: int,
-) -> pd.DataFrame:
-    """Load downsampled data for a single expiry across multiple parquet files."""
-    expiry_str = expiry.isoformat()
-    query = f"""
-        WITH bucketed AS (
-            SELECT *,
-                epoch_ms(
-                    CAST(floor(epoch_ms(sampled_at) / ({interval_minutes} * 60000))
-                    * ({interval_minutes} * 60000) AS BIGINT)
-                ) AS interval_bucket
-            FROM read_parquet('{parquet_glob}')
-            WHERE expiration_date = '{expiry_str}'
-        ),
-        ranked AS (
-            SELECT *,
-                ROW_NUMBER() OVER (
-                    PARTITION BY interval_bucket, strike, contract_type
-                    ORDER BY sampled_at DESC
-                ) AS rn
-            FROM bucketed
-        )
-        SELECT * EXCLUDE (interval_bucket, rn)
-        FROM ranked
-        WHERE rn = 1
-        ORDER BY sampled_at
-    """
-    df = _DUCKDB_CONN.execute(query).df()
-    df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
-    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
-    df["contract_type"] = df["contract_type"].str.upper()
-    return df
-
-
-@st.cache_data(ttl=30)
-def load_options_snapshot(
-    path_or_uri: Path | str,
-    _client: TickrakeClient | None = None,
-) -> pd.DataFrame:
-    """Load a single options snapshot from a local path or s3:// URI."""
-    if isinstance(path_or_uri, str) and path_or_uri.startswith("s3://"):
-        client = _client or _default_client()
-        return client.options_intraday.fetch_csv(path_or_uri, _OPTIONS_DTYPES)  # type: ignore[no-any-return]
-    path = Path(path_or_uri) if isinstance(path_or_uri, str) else path_or_uri
-    if not path.exists():
-        raise FileNotFoundError(f"Options snapshot not found: {path}")
-    df = pd.read_csv(path, dtype=_OPTIONS_DTYPES)  # type: ignore[arg-type]
-    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
-    return df
+    return times[-1], client.options_query.load_snapshot(ppath, expiry, times[-1])

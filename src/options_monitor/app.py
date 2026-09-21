@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import os
+
+import duckdb
 import streamlit as st
 from tractatus.tickrake import TickrakeClient
+from tractatus.tickrake.config import TickrakeConfig
 
 from options_monitor.config import CANDLE_DIR, OPTIONS_DIR
+from options_monitor.data.intraday import IntradayStore
 from options_monitor.tabs.flow import render_flow_tab
 from options_monitor.tabs.gex import render_gex_tab
 from options_monitor.tabs.history import render_history_tab
@@ -15,13 +20,27 @@ from options_monitor.tabs.vol import render_vol_tab
 _TOP_LEVEL_TABS = ["Vol", "GEX", "Flow", "OI", "History"]
 _DEFAULT_SYMBOL = "SPXW"
 
+# ---------------------------------------------------------------------------
+# Module-level singletons — constructed once per worker process
+# ---------------------------------------------------------------------------
+
+_duckdb_conn = duckdb.connect(os.environ.get("DUCKDB_OPTIONS_PATH", "/tmp/duckdb_options.db"))
+_duckdb_conn.execute("SET memory_limit='4GB'")
+_duckdb_conn.execute("SET threads=2")
+_duckdb_conn.execute("SET preserve_insertion_order=false")
+_duckdb_conn.execute("SET temp_directory='/tmp/duckdb_swap'")
+
+_intraday_store = IntradayStore.from_env()
+_tickrake_client = TickrakeClient(TickrakeConfig.from_env(), query_conn=_duckdb_conn)
+
 
 @st.cache_data(ttl=3600)
 def _available_roots() -> list[str]:
-    """Return sorted option roots from the local tickrake index."""
-    client = TickrakeClient()
-    roots = client.options_filesystem.list_roots()
-    return roots if roots else [_DEFAULT_SYMBOL]
+    """Return sorted option roots from the archive filesystem and intraday MinIO index."""
+    archive_roots = _tickrake_client.options_filesystem.list_roots()
+    intraday_roots = _intraday_store.list_roots()
+    combined = sorted(set(archive_roots) | set(intraday_roots))
+    return combined if combined else [_DEFAULT_SYMBOL]
 
 
 _TAB_SPINNER_MSG: dict[str, str] = {

@@ -1,4 +1,4 @@
-.PHONY: check lint format typecheck test secrets all
+.PHONY: check lint format typecheck test secrets all dev dev-services dev-stop
 
 all: check  ## Run all checks (default)
 
@@ -22,3 +22,16 @@ secrets:  ## Scan for leaked secrets
 fix:  ## Auto-fix lint and format issues
 	uv run ruff check --fix src tests
 	uv run ruff format src tests
+
+dev-services:  ## Start MinIO in background (port 9002)
+	docker compose up minio minio-init -d
+
+dev-stop:  ## Stop dev services
+	docker compose down
+
+dev: dev-services  ## Start MinIO + run Streamlit locally (port 8502)
+	MINIO_ENDPOINT=http://localhost:9002 \
+	MINIO_BUCKET=tickrake-intraday \
+	MINIO_ACCESS_KEY=minioadmin \
+	MINIO_SECRET_KEY=minioadmin \
+	uv run streamlit run src/options_monitor/app.py --server.port 8502

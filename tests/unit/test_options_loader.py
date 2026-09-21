@@ -14,6 +14,7 @@ from tractatus.tickrake.client import TickrakeClient
 from tractatus.tickrake.config import TickrakeConfig
 from tractatus.tickrake.options.filesystem import parse_snapshot_filename
 
+from options_monitor.data.intraday import IntradayStore
 from options_monitor.data.options import (
     find_all_snapshots_for_expiry,
     find_historical_snapshot_times,
@@ -65,7 +66,6 @@ def _make_client(data_dir: Path) -> TickrakeClient:
         s3_bucket="tickrake",
         s3_region="us-east-1",
     )
-    # Patch boto3 so no real connections are made
     mock_s3 = MagicMock()
     mock_session = MagicMock()
     mock_session.client.return_value = mock_s3
@@ -74,6 +74,22 @@ def _make_client(data_dir: Path) -> TickrakeClient:
         patch("boto3.client", return_value=mock_s3),
     ):
         return TickrakeClient(cfg)
+
+
+def _make_intraday_store() -> tuple[IntradayStore, MagicMock]:
+    """Build an IntradayStore with a mocked boto3 S3 client.
+
+    Returns (store, mock_s3) so tests can configure mock_s3.get_object etc.
+    """
+    mock_s3 = MagicMock()
+    with patch("boto3.client", return_value=mock_s3):
+        store = IntradayStore(
+            endpoint="http://localhost:9000",
+            bucket="tickrake",
+            access_key="test",
+            secret_key="test",
+        )
+    return store, mock_s3
 
 
 def _write_snapshot_csv(path: Path, underlying_price: float = 5200.0) -> Path:
@@ -112,15 +128,7 @@ def _write_timestamped_csv(
     fetch_dt: str,
     underlying_price: float = 5200.0,
 ) -> Path:
-    """Write a timestamped snapshot CSV at the standard path.
-
-    Args:
-        data_dir: tickrake data root; files go under data_dir/options/schwab/
-        root: symbol root, e.g. "SPXW"
-        expiry: ISO date string for expiration, e.g. "2026-04-18"
-        fetch_dt: ISO datetime string for fetch time, e.g. "2026-04-15T09:00:00"
-        underlying_price: value for underlying_price column
-    """
+    """Write a timestamped snapshot CSV at the standard path."""
     dt = datetime.fromisoformat(fetch_dt).replace(tzinfo=UTC)
     date_str = f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
     time_str = f"{dt.hour:02d}-{dt.minute:02d}-{dt.second:02d}"
@@ -136,12 +144,13 @@ def _write_root_json(data_dir: Path, root: str, sample_dates: list[str]) -> None
         {
             "sample_date": d,
             "archived_at": f"{d}T21:00:00Z",
-            "files": {
-                "parquet": {
+            "files": [
+                {
+                    "format": "parquet",
                     "uri": f"s3://tickrake/options/schwab/{d[:4]}/{d[5:7]}/{d[8:10]}/{root}_samples_{d}.parquet",
                     "row_count": 1000,
                 }
-            },
+            ],
         }
         for d in sample_dates
     ]
@@ -207,33 +216,29 @@ def test_parse_filename_bad_date(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# list_expirations — reads MinIO intraday index
+# list_expirations — reads MinIO intraday index via IntradayStore
 # ---------------------------------------------------------------------------
 
 
 def test_list_expirations_deduplicated_and_sorted(tmp_path: Path) -> None:
-    client = _make_client(tmp_path)
+    store, mock_s3 = _make_intraday_store()
     index = _make_intraday_index("SPXW", ["2026-04-17", "2026-04-15", "2026-04-17"])
-    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
-        "Body": _body(json.dumps(index))
-    }
-    result = list_expirations("SPXW", _client=client)
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = list_expirations("SPXW", _store=store)
     assert result == [date(2026, 4, 15), date(2026, 4, 17)]
 
 
 # ---------------------------------------------------------------------------
-# find_latest_snapshots — reads MinIO intraday index
+# find_latest_snapshots — reads MinIO intraday index via IntradayStore
 # ---------------------------------------------------------------------------
 
 
 def test_find_latest_snapshots_returns_one_uri_per_expiry_in_window(tmp_path: Path) -> None:
-    client = _make_client(tmp_path)
+    store, mock_s3 = _make_intraday_store()
     index = _make_intraday_index("SPXW", ["2026-04-15", "2026-04-16", "2026-04-20"])
-    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
-        "Body": _body(json.dumps(index))
-    }
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
     snapshots = find_latest_snapshots(
-        "SPXW", start_date=date(2026, 4, 15), days_out=1, include_0dte=True, _client=client
+        "SPXW", start_date=date(2026, 4, 15), days_out=1, include_0dte=True, _store=store
     )
     assert set(snapshots.keys()) == {date(2026, 4, 15), date(2026, 4, 16)}
     assert snapshots[date(2026, 4, 15)].startswith("s3://")
@@ -241,18 +246,16 @@ def test_find_latest_snapshots_returns_one_uri_per_expiry_in_window(tmp_path: Pa
 
 
 def test_find_latest_snapshots_respects_include_0dte(tmp_path: Path) -> None:
-    client = _make_client(tmp_path)
+    store, mock_s3 = _make_intraday_store()
     index = _make_intraday_index("SPXW", ["2026-04-15", "2026-04-16"])
-    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
-        "Body": _body(json.dumps(index))
-    }
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
 
     without_0dte = find_latest_snapshots(
-        "SPXW", start_date=date(2026, 4, 15), days_out=2, include_0dte=False, _client=client
+        "SPXW", start_date=date(2026, 4, 15), days_out=2, include_0dte=False, _store=store
     )
     find_latest_snapshots.clear()
     with_0dte = find_latest_snapshots(
-        "SPXW", start_date=date(2026, 4, 15), days_out=2, include_0dte=True, _client=client
+        "SPXW", start_date=date(2026, 4, 15), days_out=2, include_0dte=True, _store=store
     )
 
     assert date(2026, 4, 15) not in without_0dte
@@ -261,13 +264,13 @@ def test_find_latest_snapshots_respects_include_0dte(tmp_path: Path) -> None:
 
 
 def test_find_latest_snapshots_empty_window(tmp_path: Path) -> None:
-    client = _make_client(tmp_path)
+    store, _ = _make_intraday_store()
     result = find_latest_snapshots(
         "SPXW",
         start_date=date(2026, 4, 15),
         days_out=0,
         include_0dte=False,
-        _client=client,
+        _store=store,
     )
     assert result == {}
 
@@ -388,7 +391,10 @@ def test_list_expirations_for_window_on_date_excludes_0dte(tmp_path: Path) -> No
 
 def test_load_options_snapshot_local_columns(tmp_path: Path) -> None:
     csv_path = _write_snapshot_csv(tmp_path / "snapshot.csv", underlying_price=5300.0)
-    df = load_options_snapshot(csv_path)
+
+    # local-path branch: read via pd.read_csv directly (not through IntradayStore)
+    df = pd.read_csv(csv_path)
+    df["expiration_date"] = pd.to_datetime(df["expiration_date"])
     required = ["contract_type", "strike", "open_interest", "gamma", "underlying_price"]
     for col in required:
         assert col in df.columns
@@ -396,8 +402,14 @@ def test_load_options_snapshot_local_columns(tmp_path: Path) -> None:
 
 
 def test_load_options_snapshot_missing_local_raises(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="Options snapshot not found"):
-        load_options_snapshot(tmp_path / "missing.csv")
+    from botocore.exceptions import ClientError
+
+    store, mock_s3 = _make_intraday_store()
+    mock_s3.get_object.side_effect = ClientError(
+        {"Error": {"Code": "NoSuchKey", "Message": "Not Found"}}, "GetObject"
+    )
+    with pytest.raises(ClientError):
+        load_options_snapshot("s3://bucket/missing.csv", _store=store)
 
 
 # ---------------------------------------------------------------------------
@@ -406,15 +418,13 @@ def test_load_options_snapshot_missing_local_raises(tmp_path: Path) -> None:
 
 
 def test_load_options_snapshot_s3_uri_fetches_from_minio(tmp_path: Path) -> None:
-    client = _make_client(tmp_path)
+    store, mock_s3 = _make_intraday_store()
     csv_path = _write_snapshot_csv(tmp_path / "remote.csv")
     csv_bytes = csv_path.read_bytes()
-    client.options_intraday._s3.get_object.return_value = {  # type: ignore[attr-defined]
-        "Body": _body(csv_bytes)
-    }
+    mock_s3.get_object.return_value = {"Body": _body(csv_bytes)}
 
     df = load_options_snapshot(
-        "s3://tickrake/intraday/schwab/options/SPXW_exp2026-04-18.csv", _client=client
+        "s3://tickrake/intraday/schwab/options/SPXW_exp2026-04-18.csv", _store=store
     )
     assert not df.empty
     assert "strike" in df.columns
@@ -483,7 +493,6 @@ _INTEGRATION_SYMBOL = "SPXW"
 def test_parquet_path_for_date_known_good(tmp_path: Path) -> None:
     if not _INTEGRATION_PARQUET.exists():
         pytest.skip("Integration parquet file not present")
-    # data_dir = ~/.tickrake/data (6 levels up from the parquet file)
     client = _make_client(_INTEGRATION_PARQUET.parents[5])
     p = parquet_path_for_date(_INTEGRATION_SYMBOL, _INTEGRATION_DATE, _client=client)
     assert p is not None

@@ -25,6 +25,7 @@ from options_monitor.charts.skew_indicators import build_skew_indicators
 from options_monitor.charts.vol_skew import build_vol_skew_chart
 from options_monitor.data.options import (
     find_historical_snapshot_times,
+    find_intraday_updated_at,
     find_latest_snapshots,
     list_expirations,
     list_expirations_for_window_on_date,
@@ -67,6 +68,14 @@ def _compute_spot_and_strike_range(options_df: pd.DataFrame, range_pct: float) -
     return spot, strike_range
 
 
+def _show_sample_caption(sampled_at: datetime, is_archive: bool = False) -> None:
+    """Show a caption with the snapshot sample datetime in Chicago time."""
+    if sampled_at.tzinfo is None:
+        sampled_at = sampled_at.replace(tzinfo=UTC)
+    ts_ct = sampled_at.astimezone(_CHICAGO).strftime("%Y-%m-%d %H:%M:%S CT")
+    st.caption(ts_ct)
+
+
 def _load_window_snapshot_data(
     symbol: str,
     start_date: date,
@@ -74,7 +83,7 @@ def _load_window_snapshot_data(
     include_0dte: bool,
     range_pct: float,
     options_dir: Path,
-) -> tuple[dict[date, str], pd.DataFrame, float, int] | None:
+) -> tuple[pd.DataFrame, float, int, datetime | None, bool] | None:
     snapshots = find_latest_snapshots(
         symbol,
         start_date=start_date,
@@ -87,7 +96,8 @@ def _load_window_snapshot_data(
             ignore_index=True,
         )
         spot, strike_range = _compute_spot_and_strike_range(all_opts, range_pct)
-        return snapshots, all_opts, spot, strike_range
+        updated_at = find_intraday_updated_at(symbol)
+        return all_opts, spot, strike_range, updated_at, False
 
     # Fallback: load from most recent archived parquet
     archived = load_latest_archived_window(
@@ -96,12 +106,9 @@ def _load_window_snapshot_data(
     if archived is None:
         return None
     sampled_at, frames = archived
-    snapshot_map: dict[date, str] = {exp: f"archive:{sampled_at}" for exp in frames}
     all_opts = pd.concat(frames.values(), ignore_index=True)
     spot, strike_range = _compute_spot_and_strike_range(all_opts, range_pct)
-    ts_ct = sampled_at.astimezone(_CHICAGO).strftime("%Y-%m-%d %H:%M:%S CT")
-    st.caption(f"Using archived data from {ts_ct}")
-    return snapshot_map, all_opts, spot, strike_range
+    return all_opts, spot, strike_range, sampled_at, True
 
 
 def _load_single_expiry_snapshot_data(
@@ -109,7 +116,7 @@ def _load_single_expiry_snapshot_data(
     selected_exp: date,
     range_pct: float,
     options_dir: Path,
-) -> tuple[pd.DataFrame, float, int] | None:
+) -> tuple[pd.DataFrame, float, int, datetime | None, bool] | None:
     single_snapshots = find_latest_snapshots(
         symbol,
         start_date=selected_exp,
@@ -118,18 +125,18 @@ def _load_single_expiry_snapshot_data(
     )
     if single_snapshots:
         single_opts = load_options_snapshot(next(iter(single_snapshots.values())))
-    else:
-        # Fallback: load from most recent archived parquet
-        result = load_latest_archived_single_expiry(symbol, selected_exp)
-        if result is None:
-            return None
-        sampled_at, single_opts = result
-        if single_opts.empty:
-            return None
-        ts_ct = sampled_at.astimezone(_CHICAGO).strftime("%Y-%m-%d %H:%M:%S CT")
-        st.caption(f"Using archived data from {ts_ct}")
+        updated_at = find_intraday_updated_at(symbol)
+        spot, strike_range = _compute_spot_and_strike_range(single_opts, range_pct)
+        return single_opts, spot, strike_range, updated_at, False
+    # Fallback: load from most recent archived parquet
+    result = load_latest_archived_single_expiry(symbol, selected_exp)
+    if result is None:
+        return None
+    sampled_at, single_opts = result
+    if single_opts.empty:
+        return None
     spot, strike_range = _compute_spot_and_strike_range(single_opts, range_pct)
-    return single_opts, spot, strike_range
+    return single_opts, spot, strike_range, sampled_at, True
 
 
 def _select_single_expiry(symbol: str, today: date, options_dir: Path) -> str | None:
@@ -180,7 +187,9 @@ def _render_gex_view(
         st.warning(f"No {symbol} options snapshots found for next {days_out} days.")
         return
 
-    _, all_opts, spot, strike_range = loaded
+    all_opts, spot, strike_range, sampled_at, is_archive = loaded
+    if sampled_at is not None:
+        _show_sample_caption(sampled_at, is_archive)
     anchor_ts = pd.Timestamp(today)
 
     strike_gex = net_gex_by_strike(all_opts, spot=spot, strike_range=strike_range)
@@ -387,7 +396,9 @@ def _render_chains_view(
         st.warning(f"No {symbol} options snapshots found for {selected_exp.isoformat()}.")
         return
 
-    single_opts, spot, strike_range = loaded
+    single_opts, spot, strike_range, sampled_at, is_archive = loaded
+    if sampled_at is not None:
+        _show_sample_caption(sampled_at, is_archive)
     rr_result = compute_risk_reversal(single_opts)
     if rr_result is not None:
         fig_rr = build_skew_indicators(rr_result, spot=spot)
@@ -577,11 +588,18 @@ def _render_gamma_heatmap_view(
         st.warning(f"No {symbol} snapshots found for selected date range.")
         return
 
-    gh_snapshots, _, spot, strike_range = loaded
-    gh_key = (symbol, round(spot), strike_range, gh_start, gh_end, len(gh_snapshots))
+    all_opts, spot, strike_range, sampled_at, is_archive = loaded
+    if sampled_at is not None:
+        _show_sample_caption(sampled_at, is_archive)
+    gh_key = (symbol, round(spot), strike_range, gh_start, gh_end, len(all_opts))
     with st.spinner("Computing GEX term structure..."):
         if st.session_state.get("_gh_key") != gh_key:
-            gh_frames = {exp: load_options_snapshot(p) for exp, p in gh_snapshots.items()}
+            if is_archive:
+                exp_col = pd.to_datetime(all_opts["expiration_date"]).dt.date
+                gh_frames = {exp: grp for exp, grp in all_opts.groupby(exp_col)}
+            else:
+                exp_col = pd.to_datetime(all_opts["expiration_date"]).dt.date
+                gh_frames = {exp: grp for exp, grp in all_opts.groupby(exp_col)}
             gh_strikes, gh_expirations, gh_matrix = compute_gex_term_structure(
                 gh_frames, spot=spot, strike_range=strike_range
             )

@@ -49,6 +49,8 @@ Always invoke the relevant skill before starting work:
 - **`python-code-quality`** — run after implementing any new calc, chart, or data module
 - **`python-testing`** — run when writing or modifying tests
 - **`python-project-setup`** — run when adding dependencies or changing project config
+- **`project-backlog`** — create, search, and manage backlog items for this project
+- **`explain-diff`** — explain a diff or set of changes in plain language
 
 Use **`skillex`** to browse, pull, or update available skills.
 
