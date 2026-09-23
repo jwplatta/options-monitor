@@ -390,7 +390,8 @@ def test_list_latest_uris_parses_expirations() -> None:
     ]
     result = store.list_latest_uris("SPXW", date(2026, 4, 18), date(2026, 4, 25))
     assert set(result.keys()) == {date(2026, 4, 18), date(2026, 4, 25)}
-    assert all(v.startswith("s3://tickrake/intraday/schwab/options/latest/") for v in result.values())
+    expected_prefix = "s3://tickrake/intraday/schwab/options/latest/"
+    assert all(v.startswith(expected_prefix) for v in result.values())
 
 
 def test_list_latest_uris_empty_on_error() -> None:
@@ -412,9 +413,7 @@ def test_find_latest_snapshots_uses_path_prefix_first() -> None:
             ]
         }
     ]
-    result = find_latest_snapshots(
-        "SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store
-    )
+    result = find_latest_snapshots("SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store)
     assert date(2026, 4, 18) in result
     # get_object (index JSON) should NOT have been called
     mock_s3.get_object.assert_not_called()
@@ -429,9 +428,7 @@ def test_find_latest_snapshots_falls_back_to_index_when_prefix_empty() -> None:
     # index JSON has data
     index = _make_new_index("SPXW", ["2026-04-18"])
     mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
-    result = find_latest_snapshots(
-        "SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store
-    )
+    result = find_latest_snapshots("SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store)
     assert date(2026, 4, 18) in result
 
 
