@@ -81,6 +81,17 @@ class IntradayStore:
         df["expiration_date"] = pd.to_datetime(df["expiration_date"])
         return df
 
+    def _latest_files(self, index: dict[str, Any]) -> list[dict[str, Any]]:
+        """Extract latest-snapshot file entries from an index, handling old and new layouts."""
+        option_chains: dict[str, Any] = index.get("option_chains", {})
+        latest: dict[str, Any] = option_chains.get("latest", {})
+        files: list[dict[str, Any]] = (
+            latest.get("files")
+            or option_chains.get("files")
+            or index.get("intraday", {}).get("files", [])
+        )
+        return files
+
     def latest_snapshots(
         self,
         root: str,
@@ -90,9 +101,7 @@ class IntradayStore:
     ) -> dict[date, str]:
         """Return {expiry: s3_uri} for expirations in [start_exp, end_exp]."""
         index = self.fetch_index(root, provider)
-        files: list[dict[str, Any]] = index.get("option_chains", index.get("intraday", {})).get(
-            "files", []
-        )
+        files = self._latest_files(index)
         result: dict[date, str] = {}
         for f in files:
             exp = date.fromisoformat(str(f["expiration_date"]))
@@ -100,12 +109,30 @@ class IntradayStore:
                 result[exp] = str(f["uri"])
         return dict(sorted(result.items()))
 
+    def series_snapshots(
+        self,
+        root: str,
+        start_exp: date,
+        end_exp: date,
+        provider: str = _OPTIONS_PROVIDER,
+    ) -> list[dict[str, Any]]:
+        """Return series entries for expirations in [start_exp, end_exp], ordered chronologically.
+
+        Each entry contains at minimum: expiration_date, sampled_at, uri.
+        Returns an empty list when no series data is available (e.g. older tickrake instances).
+        """
+        index = self.fetch_index(root, provider)
+        series: list[dict[str, Any]] = index.get("option_chains", {}).get("series", [])
+        return [
+            entry
+            for entry in series
+            if start_exp <= date.fromisoformat(str(entry["expiration_date"])) <= end_exp
+        ]
+
     def list_expirations(self, root: str, provider: str = _OPTIONS_PROVIDER) -> list[date]:
         """Return sorted list of expiration dates currently in the intraday index."""
         index = self.fetch_index(root, provider)
-        files: list[dict[str, Any]] = index.get("option_chains", index.get("intraday", {})).get(
-            "files", []
-        )
+        files = self._latest_files(index)
         return sorted({date.fromisoformat(str(f["expiration_date"])) for f in files})
 
     def list_roots(self, provider: str = _OPTIONS_PROVIDER) -> list[str]:
@@ -177,6 +204,23 @@ def find_intraday_updated_at(
     """Return the updated_at timestamp from the intraday index for symbol, or None."""
     store = _store or _default_store()
     return store.updated_at(symbol)
+
+
+@st.cache_data(ttl=30)
+def find_series_snapshots(
+    symbol: str,
+    start_date: date,
+    days_out: int,
+    include_0dte: bool = True,
+    _store: IntradayStore | None = None,
+) -> list[dict[str, Any]]:
+    """Return chronological series entries for the current trading day."""
+    target_start = start_date if include_0dte else start_date + timedelta(days=1)
+    target_end = start_date + timedelta(days=days_out)
+    if target_end < target_start:
+        return []
+    store = _store or _default_store()
+    return store.series_snapshots(symbol, target_start, target_end)
 
 
 @st.cache_data(ttl=30)
