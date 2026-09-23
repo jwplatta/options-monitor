@@ -129,6 +129,40 @@ class IntradayStore:
             if start_exp <= date.fromisoformat(str(entry["expiration_date"])) <= end_exp
         ]
 
+    def list_latest_uris(
+        self,
+        root: str,
+        start_exp: date,
+        end_exp: date,
+        provider: str = _OPTIONS_PROVIDER,
+    ) -> dict[date, str]:
+        """Return {expiry: s3_uri} by listing the latest/ path prefix directly.
+
+        Queries intraday/<provider>/options/latest/<root>_exp* without reading the index JSON.
+        Returns an empty dict on error or when MinIO is unreachable.
+        """
+        prefix = f"intraday/{provider}/options/latest/{root}_exp"
+        try:
+            paginator = self._s3.get_paginator("list_objects_v2")
+            result: dict[date, str] = {}
+            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key: str = str(obj["Key"])
+                    stem = key.rsplit("/", 1)[-1].removesuffix(".csv")
+                    parts = stem.split("_exp", 1)
+                    if len(parts) != 2:
+                        continue
+                    try:
+                        exp = date.fromisoformat(parts[1])
+                    except ValueError:
+                        continue
+                    if start_exp <= exp <= end_exp:
+                        result[exp] = f"s3://{self._bucket}/{key}"
+            return dict(sorted(result.items()))
+        except Exception as exc:
+            logger.debug("list_latest_uris(%s): %s", root, exc)
+            return {}
+
     def list_expirations(self, root: str, provider: str = _OPTIONS_PROVIDER) -> list[date]:
         """Return sorted list of expiration dates currently in the intraday index."""
         index = self.fetch_index(root, provider)
@@ -237,4 +271,7 @@ def find_latest_snapshots(
     if target_end < target_start:
         return {}
     store = _store or _default_store()
-    return store.latest_snapshots(symbol, target_start, target_end)
+    result = store.list_latest_uris(symbol, target_start, target_end)
+    if not result:
+        result = store.latest_snapshots(symbol, target_start, target_end)
+    return result

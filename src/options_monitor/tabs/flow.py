@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -15,9 +16,8 @@ from options_monitor.calc.flow_tape import compute_flow_tape
 from options_monitor.charts.flow_heatmap import build_flow_heatmap_chart
 from options_monitor.charts.flow_profile import build_flow_profile_chart
 from options_monitor.charts.flow_tape import build_flow_tape_chart
+from options_monitor.data.intraday import find_series_snapshots, list_expirations
 from options_monitor.data.options import (
-    find_all_snapshots_for_expiry,
-    find_snapshots_for_expiry_on_date,
     list_expirations_for_window_on_date,
     list_snapshot_dates,
     load_historical_expiry,
@@ -35,12 +35,18 @@ def _to_chicago(ts: datetime) -> datetime:
     return ts.astimezone(_CHICAGO).replace(tzinfo=None)
 
 
-def _get_spot(snapshots: list[tuple[datetime, Path]]) -> float | None:
-    if not snapshots:
-        return None
-    latest_df = load_options_snapshot(snapshots[-1][1])
-    spot_series = pd.to_numeric(latest_df["underlying_price"], errors="coerce").dropna()
-    return float(spot_series.iloc[0]) if not spot_series.empty else None
+def _load_series_preloaded(series_entries: list[dict[str, Any]], expiry: date) -> pd.DataFrame:
+    """Load MinIO series snapshots for one expiry into a preloaded DataFrame with a _ts column."""
+    frames = []
+    for entry in series_entries:
+        if date.fromisoformat(str(entry["expiration_date"])) != expiry:
+            continue
+        df = load_options_snapshot(str(entry["uri"]))
+        df["_ts"] = pd.to_datetime(entry["sampled_at"], utc=True)
+        frames.append(df)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 def _load_parquet_preloaded(symbol: str, expiry: date, sample_date: date) -> pd.DataFrame:
@@ -272,13 +278,7 @@ def _render_intraday_flow_view(
     options_dir: Path,
     preloaded: pd.DataFrame | None = None,
 ) -> None:
-    if preloaded is not None:
-        all_expiry_snapshots: list[tuple[datetime, Path]] = []
-    else:
-        all_expiry_snapshots = find_all_snapshots_for_expiry(
-            symbol,
-            expiry=selected_exp,
-        )
+    all_expiry_snapshots: list[tuple[datetime, Path]] = []
 
     col_ct, col_wt = st.columns([3, 1])
     with col_ct:
@@ -367,10 +367,13 @@ def render_flow_tab(options_dir: Path) -> None:
         else:
             sample_date = today
 
-        # Expiration selection — use local filesystem snapshots on disk.
-        available_expiries = list_expirations_for_window_on_date(
-            symbol, sample_date=sample_date, days_out=60
-        )
+        # Expiration selection — intraday store for today, filesystem for historical dates.
+        if sample_date < today:
+            available_expiries = list_expirations_for_window_on_date(
+                symbol, sample_date=sample_date, days_out=60
+            )
+        else:
+            available_expiries = list_expirations(symbol)
         if not available_expiries:
             st.error("No expirations available for selected date.")
             return
@@ -442,23 +445,21 @@ def render_flow_tab(options_dir: Path) -> None:
             return
         spot = float(spot_series.iloc[-1])
     else:
-        # Today: use local CSV snapshots (full time series needed for flow computation).
-        snapshots = find_snapshots_for_expiry_on_date(
-            symbol,
-            expiry=selected_exp,
-            sample_date=sample_date,
-        )
-        if not snapshots:
+        # Today: load intraday series from MinIO.
+        series = find_series_snapshots(symbol, start_date=today, days_out=60, include_0dte=True)
+        preloaded = _load_series_preloaded(series, selected_exp)
+        if preloaded.empty:
             with col_chart:
                 st.warning(
                     f"No snapshots found for {symbol} expiry {selected_exp} on {sample_date}."
                 )
             return
-        spot = _get_spot(snapshots) or 0.0
-        if spot == 0.0:
+        spot_series = pd.to_numeric(preloaded["underlying_price"], errors="coerce").dropna()
+        if spot_series.empty:
             with col_chart:
                 st.warning("Could not determine spot price from snapshots.")
             return
+        spot = float(spot_series.iloc[-1])
 
     # Show latest snapshot timestamp as caption.
     latest_ts: datetime | None = None
