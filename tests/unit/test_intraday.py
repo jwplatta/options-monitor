@@ -15,6 +15,7 @@ from options_monitor.data.intraday import (
     IntradayStore,
     find_intraday_updated_at,
     find_latest_snapshots,
+    find_series_snapshots,
     list_expirations,
 )
 from options_monitor.data.options import load_options_snapshot
@@ -29,6 +30,7 @@ def clear_caches() -> None:
     list_expirations.clear()
     find_intraday_updated_at.clear()
     find_latest_snapshots.clear()
+    find_series_snapshots.clear()
     load_options_snapshot.clear()  # defined in options.py, cleared here for intraday tests
 
 
@@ -54,6 +56,7 @@ def _body(content: bytes | str) -> MagicMock:
 
 
 def _make_index(root: str, expirations: list[str]) -> dict[str, Any]:
+    """Old flat index layout (pre-PR-#97)."""
     return {
         "provider": "schwab",
         "root": root,
@@ -70,6 +73,46 @@ def _make_index(root: str, expirations: list[str]) -> dict[str, Any]:
                     "row_count": 500,
                 }
                 for exp in expirations
+            ],
+        },
+    }
+
+
+def _make_new_index(root: str, expirations: list[str]) -> dict[str, Any]:
+    """New nested index layout introduced by tickrake PR #97."""
+    series_timestamps = ["2026-04-15T14:00:00Z", "2026-04-15T15:00:00Z"]
+    return {
+        "provider": "schwab",
+        "root": root,
+        "updated_at": "2026-04-15T15:00:00Z",
+        "option_chains": {
+            "sample_date": "2026-04-15",
+            "status": "complete",
+            "latest": {
+                "sampled_at": "2026-04-15T15:00:00Z",
+                "files": [
+                    {
+                        "expiration_date": exp,
+                        "format": "csv",
+                        "uri": f"s3://tickrake/intraday/schwab/options/latest/{root}_exp{exp}.csv",
+                        "row_count": 500,
+                    }
+                    for exp in expirations
+                ],
+            },
+            "series": [
+                {
+                    "expiration_date": exp,
+                    "sampled_at": ts,
+                    "format": "csv",
+                    "uri": (
+                        f"s3://tickrake/intraday/schwab/options/2026-04-15/"
+                        f"{root}_exp{exp}_{ts.replace(':', '').replace('-', '')}.csv"
+                    ),
+                    "row_count": 500,
+                }
+                for exp in expirations
+                for ts in series_timestamps
             ],
         },
     }
@@ -256,6 +299,137 @@ def test_cached_find_latest_snapshots_respects_0dte_flag() -> None:
     )
     assert date(2026, 4, 15) not in result
     assert date(2026, 4, 16) in result
+
+
+# ---------------------------------------------------------------------------
+# New index layout (tickrake PR #97)
+# ---------------------------------------------------------------------------
+
+
+def test_list_expirations_new_layout() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_new_index("SPXW", ["2026-04-18", "2026-04-25"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = store.list_expirations("SPXW")
+    assert result == [date(2026, 4, 18), date(2026, 4, 25)]
+
+
+def test_latest_snapshots_new_layout_filters_window() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_new_index("SPXW", ["2026-04-15", "2026-04-18", "2026-04-25"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = store.latest_snapshots("SPXW", date(2026, 4, 15), date(2026, 4, 18))
+    assert set(result.keys()) == {date(2026, 4, 15), date(2026, 4, 18)}
+    assert all("latest" in v for v in result.values())
+
+
+def test_latest_snapshots_backward_compat_old_layout() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_index("SPXW", ["2026-04-15", "2026-04-18"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = store.latest_snapshots("SPXW", date(2026, 4, 15), date(2026, 4, 18))
+    assert set(result.keys()) == {date(2026, 4, 15), date(2026, 4, 18)}
+
+
+def test_series_snapshots_returns_chronological_entries() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_new_index("SPXW", ["2026-04-18", "2026-04-25"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = store.series_snapshots("SPXW", date(2026, 4, 18), date(2026, 4, 18))
+    assert len(result) == 2  # two timestamps for 2026-04-18
+    assert all(entry["expiration_date"] == "2026-04-18" for entry in result)
+    sampled_ats = [entry["sampled_at"] for entry in result]
+    assert sampled_ats == sorted(sampled_ats)
+
+
+def test_series_snapshots_empty_for_old_layout() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_index("SPXW", ["2026-04-18"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = store.series_snapshots("SPXW", date(2026, 4, 18), date(2026, 4, 18))
+    assert result == []
+
+
+def test_find_series_snapshots_cached() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_new_index("SPXW", ["2026-04-18"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = find_series_snapshots("SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store)
+    assert len(result) == 2
+    assert all("uri" in e for e in result)
+
+
+def test_find_series_snapshots_exclude_0dte() -> None:
+    store, mock_s3 = _make_store()
+    index = _make_new_index("SPXW", ["2026-04-18", "2026-04-25"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = find_series_snapshots(
+        "SPXW", start_date=date(2026, 4, 18), days_out=7, include_0dte=False, _store=store
+    )
+    assert not any(e["expiration_date"] == "2026-04-18" for e in result)
+    assert any(e["expiration_date"] == "2026-04-25" for e in result)
+
+
+# ---------------------------------------------------------------------------
+# IntradayStore.list_latest_uris (PR #97 path prefix)
+# ---------------------------------------------------------------------------
+
+
+def test_list_latest_uris_parses_expirations() -> None:
+    store, mock_s3 = _make_store()
+    paginator_mock = MagicMock()
+    mock_s3.get_paginator.return_value = paginator_mock
+    paginator_mock.paginate.return_value = [
+        {
+            "Contents": [
+                {"Key": "intraday/schwab/options/latest/SPXW_exp2026-04-18.csv"},
+                {"Key": "intraday/schwab/options/latest/SPXW_exp2026-04-25.csv"},
+                {"Key": "intraday/schwab/options/latest/SPXW_exp2026-05-02.csv"},
+            ]
+        }
+    ]
+    result = store.list_latest_uris("SPXW", date(2026, 4, 18), date(2026, 4, 25))
+    assert set(result.keys()) == {date(2026, 4, 18), date(2026, 4, 25)}
+    expected_prefix = "s3://tickrake/intraday/schwab/options/latest/"
+    assert all(v.startswith(expected_prefix) for v in result.values())
+
+
+def test_list_latest_uris_empty_on_error() -> None:
+    store, mock_s3 = _make_store()
+    mock_s3.get_paginator.side_effect = ConnectionError("down")
+    result = store.list_latest_uris("SPXW", date(2026, 4, 18), date(2026, 4, 25))
+    assert result == {}
+
+
+def test_find_latest_snapshots_uses_path_prefix_first() -> None:
+    """find_latest_snapshots should prefer list_latest_uris over index JSON."""
+    store, mock_s3 = _make_store()
+    paginator_mock = MagicMock()
+    mock_s3.get_paginator.return_value = paginator_mock
+    paginator_mock.paginate.return_value = [
+        {
+            "Contents": [
+                {"Key": "intraday/schwab/options/latest/SPXW_exp2026-04-18.csv"},
+            ]
+        }
+    ]
+    result = find_latest_snapshots("SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store)
+    assert date(2026, 4, 18) in result
+    # get_object (index JSON) should NOT have been called
+    mock_s3.get_object.assert_not_called()
+
+
+def test_find_latest_snapshots_falls_back_to_index_when_prefix_empty() -> None:
+    store, mock_s3 = _make_store()
+    # path prefix returns nothing
+    paginator_mock = MagicMock()
+    mock_s3.get_paginator.return_value = paginator_mock
+    paginator_mock.paginate.return_value = [{"Contents": []}]
+    # index JSON has data
+    index = _make_new_index("SPXW", ["2026-04-18"])
+    mock_s3.get_object.return_value = {"Body": _body(json.dumps(index))}
+    result = find_latest_snapshots("SPXW", start_date=date(2026, 4, 18), days_out=0, _store=store)
+    assert date(2026, 4, 18) in result
 
 
 def test_cached_load_options_snapshot_s3(tmp_path: Path) -> None:
