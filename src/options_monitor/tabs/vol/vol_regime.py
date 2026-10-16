@@ -169,10 +169,7 @@ def _compute_vol_regime_data(
         except Exception:
             current_snaps = {}
 
-        recent_archive_dates = [
-            d for d in hist_dates if today - timedelta(days=lookback_days) <= d < today
-        ]
-        if current_snaps and len(recent_archive_dates) >= 3:
+        if current_snaps:
             expiry = _pick_expiry(
                 list(current_snaps.keys()),
                 today,
@@ -203,6 +200,8 @@ def _compute_vol_regime_data(
         # Fallback: use most recent archived EOD snapshot
         if current_expiry_df is None:
             current_date = hist_dates[-1]
+            if current_date < today - timedelta(days=3):
+                continue
             # We need an expiry — scan the archived parquet for available ones
             expiry = _pick_expiry_from_parquet(
                 symbol,
@@ -302,6 +301,17 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     client = _default_client()
     roots = client.options_filesystem.list_roots()
 
+    # Streamlit's multiselect inserts a built-in "Select all" as its first
+    # dropdown option. Hide that option only while this picker is open.
+    st.html(
+        """<style>
+        body:has(.st-key-vol_regime_symbols input[aria-expanded="true"])
+        ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"]:first-child {
+            display: none;
+        }
+        </style>"""
+    )
+
     c1, c2, c3 = st.columns([3, 1, 1])
     with c1:
         selected = st.multiselect(
@@ -309,6 +319,7 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
             options=roots,
             default=[],
             key="vol_regime_symbols",
+            max_selections=20,
             help="Select tickers to plot on the vol regime chart",
         )
     with c2:
@@ -317,7 +328,16 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
         )
     with c3:
         lookback = int(
-            st.selectbox("Lookback (days)", _LOOKBACK_OPTIONS, index=0, key="vol_regime_lookback")
+            st.selectbox(
+                "Lookback (days)",
+                _LOOKBACK_OPTIONS,
+                index=2,
+                key="vol_regime_lookback",
+                help=(
+                    "Past calendar days used to rank today's IV and risk reversal "
+                    "against daily samples."
+                ),
+            )
             or 30
         )
 
@@ -335,8 +355,9 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
 
     if data.empty:
         st.warning(
-            "No data available for the selected symbols. "
-            "Try different symbols or a shorter lookback."
+            "No current ranked data for the selected symbols. "
+            "A rank needs at least three archived daily samples within the lookback window. "
+            "Try a longer lookback."
         )
         return
 
