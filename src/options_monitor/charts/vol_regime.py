@@ -133,11 +133,9 @@ def _add_quadrant_labels(fig: go.Figure) -> None:
         ),
         (
             0.98, 0.02, "High IV percentile<br>Low RR percentile ⓘ", "right", "bottom",
-            "Overall IV is high and puts are relatively rich.<br>"
-            "Bullish or expecting calm: sell a put credit spread.<br>"
-            "Sell the higher-strike put, buy the lower-strike put; collect premium.<br>"
-            "Bearish: buy a put debit spread.<br>"
-            "Buy the higher-strike put, sell the lower-strike put; reduce cost, cap payoff.",
+            "Puts are expensive.<br>"
+            "Bullish: sell a put credit spread (bet price holds up).<br>"
+            "Bearish: buy a put debit spread (bet price falls).",
         ),
     ]
     for x, y, label, xanchor, yanchor, tip in labels:
