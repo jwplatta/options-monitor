@@ -1,4 +1,4 @@
-.PHONY: check lint format typecheck test secrets all dev dev-services dev-stop
+.PHONY: check lint format typecheck test secrets all dev dev-services dev-stop dev-shared dev-shared-stop
 
 all: check  ## Run all checks (default)
 
@@ -28,6 +28,12 @@ dev-services:  ## Start MinIO in background (port 9002)
 
 dev-stop:  ## Stop dev services
 	docker compose down
+
+dev-shared:  ## Run a hot-reloading dev app on port 8502 using the running prod MinIO
+	docker compose -f docker-compose.shared-minio.yml -p options-monitor-dev up -d --build
+
+dev-shared-stop:  ## Stop the shared-MinIO dev app only
+	docker compose -f docker-compose.shared-minio.yml -p options-monitor-dev down
 
 dev: dev-services  ## Start MinIO + run Streamlit locally (port 8502)
 	MINIO_ENDPOINT=http://localhost:9002 \

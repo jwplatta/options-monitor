@@ -51,7 +51,12 @@ bin/run_dev.sh
 
 # Docker
 bin/run_docker.sh
+
+# Development container with live source reload, reading the running production MinIO
+make dev-shared
 ```
+
+`make dev-shared` runs an isolated development container at <http://localhost:8502> and connects to the existing MinIO endpoint (default `http://host.docker.internal:9000`). It does not start, stop, or modify MinIO. Stop only this development container with `make dev-shared-stop`.
 
 Or manually:
 

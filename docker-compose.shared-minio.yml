@@ -1,0 +1,31 @@
+# Development app isolated from production, reading the existing MinIO service.
+# Run with: make dev-shared
+services:
+  options-monitor:
+    build: .
+    mem_limit: 5g
+    ports:
+      - "8502:8501"
+    volumes:
+      - "${TICKRAKE_HOME:-$HOME/.tickrake}:/tickrake:ro"
+      - "${HOME}/.aws:/root/.aws:ro"
+      - "./src:/app/src:ro"
+    environment:
+      TICKRAKE_HOME: /tickrake
+      TICKRAKE_DATA_DIR: /tickrake/data
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_REGION: "${S3_REGION:-us-east-1}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "streamlit"
+      - "run"
+      - "src/options_monitor/app.py"
+      - "--server.port=8501"
+      - "--server.address=0.0.0.0"
+      - "--server.headless=true"
+      - "--server.runOnSave=true"
