@@ -30,6 +30,33 @@ def _default_client() -> TickrakeClient:
     return TickrakeClient(TickrakeConfig.from_env())
 
 
+def _date_dir(parquet_dir: Path, sample_date: date) -> Path:
+    return (
+        parquet_dir
+        / f"{sample_date.year:04d}"
+        / f"{sample_date.month:02d}"
+        / f"{sample_date.day:02d}"
+    )
+
+
+def _available_sample_dates(
+    symbol: str,
+    indexed_dates: list[date],
+    parquet_dir: Path,
+    start_date: date,
+    end_date: date,
+) -> list[date]:
+    """Combine published index dates with local parquets in the requested window."""
+    dates = {d for d in indexed_dates if start_date <= d <= end_date}
+    for days_ago in range((end_date - start_date).days + 1):
+        sample_date = end_date - timedelta(days=days_ago)
+        day_dir = _date_dir(parquet_dir, sample_date)
+        path = day_dir / f"{symbol}_samples_{sample_date.isoformat()}.parquet"
+        if path.is_file():
+            dates.add(sample_date)
+    return sorted(dates)
+
+
 def _pick_expiry(expirations: list[date], today: date, target_dte: int) -> date | None:
     """Pick the expiration closest to *target_dte* days from *today*."""
     target_date = today + timedelta(days=target_dte)
@@ -53,13 +80,9 @@ def _pick_expiry_from_parquet(
     target_dte: int,
     _parquet_dir: str,
 ) -> date | None:
-    """Scan a parquet file for distinct expirations and pick closest to target DTE."""
-    parquet_path = (
-        Path(_parquet_dir)
-        / f"{sample_date.year:04d}"
-        / f"{sample_date.month:02d}"
-        / f"{sample_date.day:02d}"
-        / f"{symbol}_samples_{sample_date.isoformat()}.parquet"
+    """Pick the closest available expiry from one historical parquet."""
+    parquet_path = _date_dir(Path(_parquet_dir), sample_date) / (
+        f"{symbol}_samples_{sample_date.isoformat()}.parquet"
     )
     if not parquet_path.exists():
         client = _default_client()
@@ -88,13 +111,9 @@ def _load_eod_snapshot_for_expiry(
     expiry: date,
     _parquet_dir: str,
 ) -> pd.DataFrame:
-    """Load the last intraday snapshot for a symbol/date/expiry from archived parquet."""
-    parquet_path = (
-        Path(_parquet_dir)
-        / f"{sample_date.year:04d}"
-        / f"{sample_date.month:02d}"
-        / f"{sample_date.day:02d}"
-        / f"{symbol}_samples_{sample_date.isoformat()}.parquet"
+    """Load the last snapshot for a symbol/date/expiry from archived parquet."""
+    parquet_path = _date_dir(Path(_parquet_dir), sample_date) / (
+        f"{symbol}_samples_{sample_date.isoformat()}.parquet"
     )
     if not parquet_path.exists():
         # Try downloading via archive client
@@ -145,11 +164,18 @@ def _compute_vol_regime_data(
     rows: list[dict[str, object]] = []
 
     for symbol in symbols:
-        # Get available historical dates for this symbol
+        # The root JSON can lag behind local parquet publication.
         try:
-            hist_dates = list_snapshot_dates(symbol, client)
+            indexed_dates = list_snapshot_dates(symbol, client)
         except Exception:
-            continue
+            indexed_dates = []
+        hist_dates = _available_sample_dates(
+            symbol,
+            indexed_dates,
+            Path(_parquet_dir),
+            today - timedelta(days=lookback_days),
+            today,
+        )
         if not hist_dates:
             continue
 
