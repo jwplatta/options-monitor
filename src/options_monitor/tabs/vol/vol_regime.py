@@ -464,8 +464,8 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     st.caption(
         "RR = 25Δ call IV − 25Δ put IV. Today's chain is compared with each symbol's "
         "first sample after 10:30 ET and last sample on each compacted day at a similar DTE; "
-        "a low RR percentile does not "
-        "predict direction."
+        "a low RR percentile does not predict direction. Hover the quadrant labels for "
+        "trade ideas."
     )
 
     history_gaps = data[

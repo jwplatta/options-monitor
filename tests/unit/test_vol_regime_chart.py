@@ -30,3 +30,14 @@ def test_hover_shows_selected_expiration_and_actual_dte() -> None:
     assert "Expiration: %{customdata[3]}" in trace.hovertemplate
     assert trace.customdata[0][3] == "2026-11-16"
     assert trace.customdata[0][4] == 31
+
+
+def test_quadrant_labels_show_trade_ideas_on_hover() -> None:
+    fig = build_vol_regime_chart(pd.DataFrame(columns=["symbol", "iv_rank", "rr_rank"]))
+    tips = [annotation.hovertext for annotation in fig.layout.annotations if annotation.hovertext]
+
+    assert len(tips) == 4
+    assert any("buying calls" in tip for tip in tips)
+    assert any("buying puts" in tip for tip in tips)
+    assert any("selling a call spread" in tip for tip in tips)
+    assert any("selling a put spread" in tip for tip in tips)

@@ -111,20 +111,42 @@ def _add_quadrant_shading(fig: go.Figure) -> None:
 
 
 def _add_quadrant_labels(fig: go.Figure) -> None:
-    """Add corner annotations for each quadrant."""
+    """Add corner annotations with trade ideas on hover."""
     labels = [
-        (0.02, 0.98, "Low IV percentile<br>High RR percentile", "left", "top"),
-        (0.98, 0.98, "High IV percentile<br>High RR percentile", "right", "top"),
-        (0.02, 0.02, "Low IV percentile<br>Low RR percentile", "left", "bottom"),
-        (0.98, 0.02, "High IV percentile<br>Low RR percentile", "right", "bottom"),
+        (
+            0.02, 0.98, "Low IV percentile<br>High RR percentile ⓘ", "left", "top",
+            "Calls are relatively rich, but overall IV is low.<br>"
+            "Bearish: consider buying puts or put spreads.<br>"
+            "Bullish: a call spread limits what you pay for calls.",
+        ),
+        (
+            0.98, 0.98, "High IV percentile<br>High RR percentile ⓘ", "right", "top",
+            "Overall IV is high and calls are relatively rich.<br>"
+            "Fading upside: consider selling a call spread.<br>"
+            "Bullish: a call spread limits the cost of rich calls.",
+        ),
+        (
+            0.02, 0.02, "Low IV percentile<br>Low RR percentile ⓘ", "left", "bottom",
+            "Overall IV is low and puts are relatively rich.<br>"
+            "Bullish: consider buying calls or call spreads.<br>"
+            "Willing to own lower: consider selling a put spread.",
+        ),
+        (
+            0.98, 0.02, "High IV percentile<br>Low RR percentile ⓘ", "right", "bottom",
+            "Overall IV is high and puts are relatively rich.<br>"
+            "Bullish or expecting calm: consider selling a put spread.<br>"
+            "Bearish: a put spread can offset the cost of rich puts.",
+        ),
     ]
-    for x, y, text, xanchor, yanchor in labels:
+    for x, y, label, xanchor, yanchor, tip in labels:
         fig.add_annotation(
             x=x,
             y=y,
             xref="paper",
             yref="paper",
-            text=text,
+            text=label,
+            hovertext=tip,
+            hoverlabel={"bgcolor": "rgba(35,35,50,0.95)", "font_size": 12},
             showarrow=False,
             font={"size": 11, "color": "rgba(200,200,200,0.5)"},
             xanchor=xanchor,
