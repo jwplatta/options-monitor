@@ -425,7 +425,7 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
             st.selectbox(
                 "Lookback (days)",
                 _LOOKBACK_OPTIONS,
-                index=2,
+                index=4,
                 key="vol_regime_lookback",
                 help=(
                     "Past calendar days used to place today's IV and risk reversal "
