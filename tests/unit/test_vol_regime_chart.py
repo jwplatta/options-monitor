@@ -40,4 +40,5 @@ def test_quadrant_labels_show_trade_ideas_on_hover() -> None:
     assert any("buying calls" in tip for tip in tips)
     assert any("buying puts" in tip for tip in tips)
     assert any("selling a call spread" in tip for tip in tips)
-    assert any("selling a put spread" in tip for tip in tips)
+    assert any("sell a put credit spread" in tip for tip in tips)
+    assert any("buy a put debit spread" in tip for tip in tips)
