@@ -151,6 +151,58 @@ def _load_eod_snapshot_for_expiry(
     return df
 
 
+@st.cache_data(ttl=300, max_entries=20)
+def _load_daily_snapshots_for_expiry(
+    symbol: str,
+    sample_date: date,
+    expiry: date,
+    parquet_dir: str,
+) -> list[pd.DataFrame]:
+    """Load the first chain at/after 10:30 ET and the day's last chain."""
+    parquet_path = _date_dir(Path(parquet_dir), sample_date) / (
+        f"{symbol}_samples_{sample_date.isoformat()}.parquet"
+    )
+    if not parquet_path.exists():
+        client = _default_client()
+        result = client.options_archive.get_parquet_path(symbol, sample_date)
+        if result is None:
+            return []
+        parquet_path = result
+
+    expiry_str = expiry.isoformat()
+    try:
+        with duckdb.connect() as conn:
+            df = conn.execute(
+                """
+                WITH selected_times AS (
+                    SELECT
+                        MIN(sampled_at) FILTER (
+                            WHERE CAST(sampled_at AT TIME ZONE 'America/New_York' AS TIME)
+                                  >= TIME '10:30:00'
+                        ) AS after_open,
+                        MAX(sampled_at) AS last_sample
+                    FROM read_parquet(?)
+                    WHERE expiration_date = ?
+                )
+                SELECT t.*
+                FROM read_parquet(?) t, selected_times s
+                WHERE t.expiration_date = ?
+                  AND t.sampled_at IN (s.after_open, s.last_sample)
+                ORDER BY t.sampled_at
+                """,
+                [str(parquet_path), expiry_str, str(parquet_path), expiry_str],
+            ).df()
+    except Exception:
+        return []
+
+    if df.empty:
+        return []
+
+    df = df.astype({col: dtype for col, dtype in OPTIONS_DTYPES.items() if col in df.columns})
+    df["contract_type"] = df["contract_type"].str.upper()
+    return [frame for _, frame in df.groupby("sampled_at", sort=True)]
+
+
 @st.cache_data(ttl=300, max_entries=10)
 def _compute_vol_regime_data(
     symbols: tuple[str, ...],
@@ -158,7 +210,7 @@ def _compute_vol_regime_data(
     lookback_days: int,
     _parquet_dir: str,
 ) -> pd.DataFrame:
-    """Compute vol regime z-scores for all symbols."""
+    """Compute vol regime percentiles for all symbols."""
     today = date.today()
     client = _default_client()
     rows: list[dict[str, object]] = []
@@ -258,7 +310,7 @@ def _compute_vol_regime_data(
             continue
         current_rr = rr_result.rr
 
-        # Build historical IV and RR series over lookback window.
+        # Build historical IV and RR series from two snapshots per date.
         # Each historical date picks its own nearest-to-target-DTE expiry
         # (the same fixed expiry often didn't exist weeks ago).
         lookback_start = current_date - timedelta(days=lookback_days)
@@ -279,27 +331,25 @@ def _compute_vol_regime_data(
             if hist_expiry is None:
                 continue
 
-            hist_df = _load_eod_snapshot_for_expiry(
+            hist_frames = _load_daily_snapshots_for_expiry(
                 symbol,
                 sample_date,
                 hist_expiry,
                 _parquet_dir,
             )
-            if hist_df.empty:
-                continue
+            for hist_df in hist_frames:
+                hist_spot_vals = hist_df["underlying_price"].dropna()
+                if hist_spot_vals.empty:
+                    continue
+                hist_spot = float(hist_spot_vals.iloc[0])
 
-            hist_spot_vals = hist_df["underlying_price"].dropna()
-            if hist_spot_vals.empty:
-                continue
-            hist_spot = float(hist_spot_vals.iloc[0])
+                iv = compute_atm_iv(hist_df, hist_spot)
+                if iv is not None:
+                    hist_ivs.append(iv)
 
-            iv = compute_atm_iv(hist_df, hist_spot)
-            if iv is not None:
-                hist_ivs.append(iv)
-
-            hist_rr = compute_risk_reversal(hist_df)
-            if hist_rr is not None:
-                hist_rrs.append(hist_rr.rr)
+                hist_rr = compute_risk_reversal(hist_df)
+                if hist_rr is not None:
+                    hist_rrs.append(hist_rr.rr)
 
         point = build_vol_regime_row(current_iv, current_rr, hist_ivs, hist_rrs)
         if point is None or expiry is None:
@@ -379,7 +429,7 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
                 key="vol_regime_lookback",
                 help=(
                     "Past calendar days used to place today's IV and risk reversal "
-                    "against daily samples."
+                    "against the first snapshot after 10:30 ET and the day's last snapshot."
                 ),
             )
             or 30
@@ -400,7 +450,7 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     if data.empty:
         st.warning(
             "No current percentile data for the selected symbols. "
-            "A percentile needs at least three archived daily samples within the lookback window. "
+            "A percentile needs at least three archived snapshots within the lookback window. "
             "Try a longer lookback."
         )
         return
@@ -413,7 +463,8 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
         "RR = 25Δ call IV − 25Δ put IV. Today's chain is compared with each symbol's "
-        "last snapshot on each compacted day at a similar DTE; a low RR percentile does not "
+        "first sample after 10:30 ET and last sample on each compacted day at a similar DTE; "
+        "a low RR percentile does not "
         "predict direction."
     )
 
