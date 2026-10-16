@@ -25,6 +25,8 @@ def test_hover_shows_selected_expiration_and_actual_dte() -> None:
 
     trace = build_vol_regime_chart(data).data[0]
 
+    assert "ATM IV percentile" in trace.hovertemplate
+    assert "25Δ RR percentile" in trace.hovertemplate
     assert "Expiration: %{customdata[3]}" in trace.hovertemplate
     assert trace.customdata[0][3] == "2026-11-16"
     assert trace.customdata[0][4] == 31

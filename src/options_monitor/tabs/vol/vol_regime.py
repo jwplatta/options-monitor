@@ -23,7 +23,7 @@ from options_monitor.data.options import (
 )
 
 _TARGET_DTE_OPTIONS = [5, 15, 30, 45]
-_LOOKBACK_OPTIONS = [30, 45, 60]
+_LOOKBACK_OPTIONS = [30, 45, 60, 180]
 
 
 def _default_client() -> TickrakeClient:
@@ -378,7 +378,7 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
                 index=2,
                 key="vol_regime_lookback",
                 help=(
-                    "Past calendar days used to rank today's IV and risk reversal "
+                    "Past calendar days used to place today's IV and risk reversal "
                     "against daily samples."
                 ),
             )
@@ -399,17 +399,22 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
 
     if data.empty:
         st.warning(
-            "No current ranked data for the selected symbols. "
-            "A rank needs at least three archived daily samples within the lookback window. "
+            "No current percentile data for the selected symbols. "
+            "A percentile needs at least three archived daily samples within the lookback window. "
             "Try a longer lookback."
         )
         return
 
     fig = build_vol_regime_chart(data)
+    fig.update_layout(
+        title=f"Vol regime percentiles · {target_dte} DTE target · {lookback} day lookback",
+        margin={"l": 60, "r": 60, "t": 70, "b": 60},
+    )
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
-        "RR = 25Δ call IV − 25Δ put IV. Each rank compares one symbol with its own "
-        "history at a similar target DTE; a low RR rank does not predict direction."
+        "RR = 25Δ call IV − 25Δ put IV. Today's chain is compared with each symbol's "
+        "last snapshot on each compacted day at a similar DTE; a low RR percentile does not "
+        "predict direction."
     )
 
     history_gaps = data[
@@ -424,7 +429,7 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     if not history_gaps.empty:
         st.warning(
             "The historical archive ends more than 7 days before the current sample "
-            "for some symbols. Their ranks omit recent market sessions; check "
+            "for some symbols. Their percentiles omit recent market sessions; check "
             "History Through and the observation counts in the data table."
         )
 
@@ -450,6 +455,21 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
             "history_through",
         ]
         st.dataframe(
-            data.set_index("symbol")[columns].round(2),
+            data.set_index("symbol")[columns]
+            .round(2)
+            .rename(
+                columns={
+                    "iv_rank": "ATM IV percentile",
+                    "rr_rank": "25Δ RR percentile",
+                    "current_iv": "ATM IV (%)",
+                    "current_rr": "25Δ RR (pp)",
+                    "sample_date": "Sample date",
+                    "expiration_date": "Expiration",
+                    "actual_dte": "Actual DTE",
+                    "iv_history_count": "IV samples",
+                    "rr_history_count": "RR samples",
+                    "history_through": "History through",
+                }
+            ),
             use_container_width=True,
         )

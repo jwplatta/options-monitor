@@ -1,4 +1,4 @@
-"""Vol regime scatter chart: IV rank vs Risk Reversal rank (percentiles)."""
+"""Vol regime scatter chart: ATM IV and risk reversal percentiles."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 
 
 def build_vol_regime_chart(data: pd.DataFrame) -> go.Figure:
-    """Build a 2D scatter of tickers by IV rank (x) vs RR rank (y).
+    """Build a 2D scatter of tickers by IV percentile (x) vs RR percentile (y).
 
     Parameters
     ----------
@@ -28,8 +28,8 @@ def build_vol_regime_chart(data: pd.DataFrame) -> go.Figure:
     # Scatter points
     hover_parts = [
         "<b>%{text}</b>",
-        "IV Rank: %{x:.0f}%",
-        "RR Rank: %{y:.0f}%",
+        "ATM IV percentile: %{x:.0f}%",
+        "25Δ RR percentile: %{y:.0f}%",
     ]
     hover_fields = [
         ("current_iv", "ATM IV: %{customdata[IDX]:.1f}%"),
@@ -76,8 +76,8 @@ def build_vol_regime_chart(data: pd.DataFrame) -> go.Figure:
         template="plotly_dark",
         height=600,
         margin={"l": 60, "r": 60, "t": 40, "b": 60},
-        xaxis_title="ATM IV rank vs own history  →",
-        yaxis_title="25Δ RR rank vs own history  →",
+        xaxis_title="ATM IV percentile vs own history  →",
+        yaxis_title="25Δ RR percentile vs own history  →",
         xaxis={"range": [-2, 102]},
         yaxis={"range": [-2, 102]},
         paper_bgcolor="rgba(20,20,30,1)",
@@ -113,10 +113,10 @@ def _add_quadrant_shading(fig: go.Figure) -> None:
 def _add_quadrant_labels(fig: go.Figure) -> None:
     """Add corner annotations for each quadrant."""
     labels = [
-        (0.02, 0.98, "Low IV rank<br>High RR rank", "left", "top"),
-        (0.98, 0.98, "High IV rank<br>High RR rank", "right", "top"),
-        (0.02, 0.02, "Low IV rank<br>Low RR rank", "left", "bottom"),
-        (0.98, 0.02, "High IV rank<br>Low RR rank", "right", "bottom"),
+        (0.02, 0.98, "Low IV percentile<br>High RR percentile", "left", "top"),
+        (0.98, 0.98, "High IV percentile<br>High RR percentile", "right", "top"),
+        (0.02, 0.02, "Low IV percentile<br>Low RR percentile", "left", "bottom"),
+        (0.98, 0.02, "High IV percentile<br>Low RR percentile", "right", "bottom"),
     ]
     for x, y, text, xanchor, yanchor in labels:
         fig.add_annotation(
