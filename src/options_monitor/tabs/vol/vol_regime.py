@@ -23,7 +23,7 @@ from options_monitor.data.options import (
 )
 
 _TARGET_DTE_OPTIONS = [5, 15, 30, 45]
-_LOOKBACK_OPTIONS = [30, 45, 60, 180]
+_LOOKBACK_OPTIONS = [30, 45, 60, 180, 360]
 
 
 def _default_client() -> TickrakeClient:
