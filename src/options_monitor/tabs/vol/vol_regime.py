@@ -1,23 +1,23 @@
-"""Vol Regime subtab: IV z-score vs Risk Reversal z-score scatter."""
+"""Vol Regime subtab: IV rank vs risk reversal rank scatter."""
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 import streamlit as st
 from tractatus.calc.vol import compute_risk_reversal
 from tractatus.tickrake.client import TickrakeClient
 from tractatus.tickrake.config import TickrakeConfig
+from tractatus.tickrake.options.queries import OPTIONS_DTYPES
 
 from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.charts.vol_regime import build_vol_regime_chart
 from options_monitor.config import OPTIONS_DIR, PARQUET_OPTIONS_DIR
+from options_monitor.data.intraday import find_latest_snapshots
 from options_monitor.data.options import (
-    _DUCKDB_CONN,
-    _OPTIONS_DTYPES,
-    find_latest_snapshots,
     list_snapshot_dates,
     load_options_snapshot,
 )
@@ -69,10 +69,11 @@ def _pick_expiry_from_parquet(
         parquet_path = result
 
     try:
-        rows = _DUCKDB_CONN.execute(
-            "SELECT DISTINCT expiration_date FROM read_parquet(?)",
-            [str(parquet_path)],
-        ).fetchall()
+        with duckdb.connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT expiration_date FROM read_parquet(?)",
+                [str(parquet_path)],
+            ).fetchall()
     except Exception:
         return None
 
@@ -105,27 +106,28 @@ def _load_eod_snapshot_for_expiry(
 
     expiry_str = expiry.isoformat()
     try:
-        df = _DUCKDB_CONN.execute(
-            """
-            WITH last_sample AS (
-                SELECT MAX(sampled_at) AS max_sa
-                FROM read_parquet(?)
-                WHERE expiration_date = ?
-            )
-            SELECT t.*
-            FROM read_parquet(?) t, last_sample ls
-            WHERE t.expiration_date = ?
-              AND t.sampled_at = ls.max_sa
-            """,
-            [str(parquet_path), expiry_str, str(parquet_path), expiry_str],
-        ).df()
+        with duckdb.connect() as conn:
+            df = conn.execute(
+                """
+                WITH last_sample AS (
+                    SELECT MAX(sampled_at) AS max_sa
+                    FROM read_parquet(?)
+                    WHERE expiration_date = ?
+                )
+                SELECT t.*
+                FROM read_parquet(?) t, last_sample ls
+                WHERE t.expiration_date = ?
+                  AND t.sampled_at = ls.max_sa
+                """,
+                [str(parquet_path), expiry_str, str(parquet_path), expiry_str],
+            ).df()
     except Exception:
         return pd.DataFrame()
 
     if df.empty:
         return df
 
-    df = df.astype({col: dtype for col, dtype in _OPTIONS_DTYPES.items() if col in df.columns})
+    df = df.astype({col: dtype for col, dtype in OPTIONS_DTYPES.items() if col in df.columns})
     df["contract_type"] = df["contract_type"].str.upper()
     return df
 
@@ -167,7 +169,10 @@ def _compute_vol_regime_data(
         except Exception:
             current_snaps = {}
 
-        if current_snaps:
+        recent_archive_dates = [
+            d for d in hist_dates if today - timedelta(days=lookback_days) <= d < today
+        ]
+        if current_snaps and len(recent_archive_dates) >= 3:
             expiry = _pick_expiry(
                 list(current_snaps.keys()),
                 today,
@@ -191,6 +196,7 @@ def _compute_vol_regime_data(
                         filtered = _filter_snapshot_to_expiry(raw, expiry)
                         if not filtered.empty:
                             current_expiry_df = filtered
+                            current_date = today
                     except Exception:
                         pass
 
@@ -201,7 +207,7 @@ def _compute_vol_regime_data(
             expiry = _pick_expiry_from_parquet(
                 symbol,
                 current_date,
-                today,
+                current_date,
                 target_dte,
                 _parquet_dir,
             )
@@ -230,8 +236,8 @@ def _compute_vol_regime_data(
         # Build historical IV and RR series over lookback window.
         # Each historical date picks its own nearest-to-target-DTE expiry
         # (the same fixed expiry often didn't exist weeks ago).
-        lookback_start = today - timedelta(days=lookback_days)
-        lookback_dates = [d for d in hist_dates if lookback_start <= d < today]
+        lookback_start = current_date - timedelta(days=lookback_days)
+        lookback_dates = [d for d in hist_dates if lookback_start <= d < current_date]
 
         hist_ivs: list[float] = []
         hist_rrs: list[float] = []
@@ -280,11 +286,14 @@ def _compute_vol_regime_data(
                 "rr_rank": point.rr_rank,
                 "current_iv": point.current_iv,
                 "current_rr": point.current_rr,
+                "sample_date": current_date,
             }
         )
 
     if not rows:
-        return pd.DataFrame(columns=["symbol", "iv_rank", "rr_rank"])
+        return pd.DataFrame(
+            columns=["symbol", "iv_rank", "rr_rank", "current_iv", "current_rr", "sample_date"]
+        )
     return pd.DataFrame(rows)
 
 
@@ -334,9 +343,17 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
     fig = build_vol_regime_chart(data)
     st.plotly_chart(fig, use_container_width=True)
 
+    stale_dates = sorted({d for d in data["sample_date"] if d < date.today()})
+    if stale_dates:
+        st.caption(
+            "Archive samples are shown where recent history is insufficient. "
+            "Check each symbol's sample date in the data table."
+        )
+
     # Summary table
     with st.expander("Data Table"):
+        columns = ["iv_rank", "rr_rank", "current_iv", "current_rr", "sample_date"]
         st.dataframe(
-            data.set_index("symbol")[["iv_rank", "rr_rank", "current_iv", "current_rr"]].round(2),
+            data.set_index("symbol")[columns].round(2),
             use_container_width=True,
         )
