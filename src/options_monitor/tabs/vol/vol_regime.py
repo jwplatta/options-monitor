@@ -237,6 +237,7 @@ def _compute_vol_regime_data(
         # (the same fixed expiry often didn't exist weeks ago).
         lookback_start = current_date - timedelta(days=lookback_days)
         lookback_dates = [d for d in hist_dates if lookback_start <= d < current_date]
+        history_through = max(lookback_dates) if lookback_dates else None
 
         hist_ivs: list[float] = []
         hist_rrs: list[float] = []
@@ -275,7 +276,7 @@ def _compute_vol_regime_data(
                 hist_rrs.append(hist_rr.rr)
 
         point = build_vol_regime_row(current_iv, current_rr, hist_ivs, hist_rrs)
-        if point is None:
+        if point is None or expiry is None:
             continue
 
         rows.append(
@@ -286,12 +287,29 @@ def _compute_vol_regime_data(
                 "current_iv": point.current_iv,
                 "current_rr": point.current_rr,
                 "sample_date": current_date,
+                "expiration_date": expiry,
+                "actual_dte": (expiry - current_date).days,
+                "iv_history_count": len(hist_ivs),
+                "rr_history_count": len(hist_rrs),
+                "history_through": history_through,
             }
         )
 
     if not rows:
         return pd.DataFrame(
-            columns=["symbol", "iv_rank", "rr_rank", "current_iv", "current_rr", "sample_date"]
+            columns=[
+                "symbol",
+                "iv_rank",
+                "rr_rank",
+                "current_iv",
+                "current_rr",
+                "sample_date",
+                "expiration_date",
+                "actual_dte",
+                "iv_history_count",
+                "rr_history_count",
+                "history_through",
+            ]
         )
     return pd.DataFrame(rows)
 
@@ -363,6 +381,26 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
 
     fig = build_vol_regime_chart(data)
     st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "RR = 25Δ call IV − 25Δ put IV. Each rank compares one symbol with its own "
+        "history at a similar target DTE; a low RR rank does not predict direction."
+    )
+
+    history_gaps = data[
+        data.apply(
+            lambda row: (
+                row["history_through"] is not None
+                and (row["sample_date"] - row["history_through"]).days > 7
+            ),
+            axis=1,
+        )
+    ]
+    if not history_gaps.empty:
+        st.warning(
+            "The historical archive ends more than 7 days before the current sample "
+            "for some symbols. Their ranks omit recent market sessions; check "
+            "History Through and the observation counts in the data table."
+        )
 
     stale_dates = sorted({d for d in data["sample_date"] if d < date.today()})
     if stale_dates:
@@ -373,7 +411,18 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
 
     # Summary table
     with st.expander("Data Table"):
-        columns = ["iv_rank", "rr_rank", "current_iv", "current_rr", "sample_date"]
+        columns = [
+            "iv_rank",
+            "rr_rank",
+            "current_iv",
+            "current_rr",
+            "sample_date",
+            "expiration_date",
+            "actual_dte",
+            "iv_history_count",
+            "rr_history_count",
+            "history_through",
+        ]
         st.dataframe(
             data.set_index("symbol")[columns].round(2),
             use_container_width=True,

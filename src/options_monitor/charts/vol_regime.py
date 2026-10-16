@@ -13,7 +13,8 @@ def build_vol_regime_chart(data: pd.DataFrame) -> go.Figure:
     ----------
     data:
         DataFrame with columns: ``symbol``, ``iv_rank``, ``rr_rank``.
-        Optional columns: ``current_iv``, ``current_rr``.
+        Optional columns: ``current_iv``, ``current_rr``, ``sample_date``,
+        ``expiration_date``, ``actual_dte``.
     """
     fig = go.Figure()
 
@@ -30,14 +31,25 @@ def build_vol_regime_chart(data: pd.DataFrame) -> go.Figure:
         "IV Rank: %{x:.0f}%",
         "RR Rank: %{y:.0f}%",
     ]
-    if "current_iv" in data.columns:
-        hover_parts.append("IV: %{customdata[0]:.1f}%")
-    if "current_rr" in data.columns:
-        hover_parts.append("RR: %{customdata[1]:.2f}%")
+    hover_fields = [
+        ("current_iv", "ATM IV: %{customdata[IDX]:.1f}%"),
+        ("current_rr", "25Δ RR: %{customdata[IDX]:.2f} pp"),
+        ("sample_date", "Sample: %{customdata[IDX]}"),
+        ("expiration_date", "Expiration: %{customdata[IDX]}"),
+        ("actual_dte", "Actual DTE: %{customdata[IDX]}"),
+    ]
+    present_fields = [field for field, _ in hover_fields if field in data.columns]
+    for field, template in hover_fields:
+        if field in present_fields:
+            hover_parts.append(template.replace("IDX", str(present_fields.index(field))))
 
     customdata = None
-    if {"current_iv", "current_rr"}.issubset(data.columns):
-        customdata = data[["current_iv", "current_rr"]].values
+    if present_fields:
+        hover_data = data[present_fields].copy()
+        for field in ("sample_date", "expiration_date"):
+            if field in hover_data:
+                hover_data[field] = hover_data[field].astype(str)
+        customdata = hover_data.to_numpy()
 
     fig.add_trace(
         go.Scatter(
@@ -64,8 +76,8 @@ def build_vol_regime_chart(data: pd.DataFrame) -> go.Figure:
         template="plotly_dark",
         height=600,
         margin={"l": 60, "r": 60, "t": 40, "b": 60},
-        xaxis_title="IV Rank  →  High IV Rank",
-        yaxis_title="RR Rank  →  Calls Rich (Upside Bid)",
+        xaxis_title="ATM IV rank vs own history  →",
+        yaxis_title="25Δ RR rank vs own history  →",
         xaxis={"range": [-2, 102]},
         yaxis={"range": [-2, 102]},
         paper_bgcolor="rgba(20,20,30,1)",
@@ -80,10 +92,10 @@ def _add_quadrant_shading(fig: go.Figure) -> None:
     """Add translucent quadrant fills (split at 50)."""
     quads = [
         # (x0, y0, x1, y1, color)
-        (0, 50, 50, 100, "rgba(0,180,140,0.07)"),  # top-left: cheap vol, upside
-        (50, 50, 100, 100, "rgba(180,60,80,0.07)"),  # top-right: expensive vol, upside
-        (0, 0, 50, 50, "rgba(0,140,180,0.07)"),  # bottom-left: cheap vol, downside
-        (50, 0, 100, 50, "rgba(180,100,0,0.07)"),  # bottom-right: expensive vol, downside
+        (0, 50, 50, 100, "rgba(0,180,140,0.07)"),
+        (50, 50, 100, 100, "rgba(180,60,80,0.07)"),
+        (0, 0, 50, 50, "rgba(0,140,180,0.07)"),
+        (50, 0, 100, 50, "rgba(180,100,0,0.07)"),
     ]
     for x0, y0, x1, y1, color in quads:
         fig.add_shape(
@@ -101,10 +113,10 @@ def _add_quadrant_shading(fig: go.Figure) -> None:
 def _add_quadrant_labels(fig: go.Figure) -> None:
     """Add corner annotations for each quadrant."""
     labels = [
-        (0.02, 0.98, "Cheap Vol<br>Upside Potential", "left", "top"),
-        (0.98, 0.98, "Expensive Vol<br>Upside Potential", "right", "top"),
-        (0.02, 0.02, "Cheap Vol<br>Downside Potential", "left", "bottom"),
-        (0.98, 0.02, "Expensive Vol<br>Downside Potential", "right", "bottom"),
+        (0.02, 0.98, "Low IV rank<br>High RR rank", "left", "top"),
+        (0.98, 0.98, "High IV rank<br>High RR rank", "right", "top"),
+        (0.02, 0.02, "Low IV rank<br>Low RR rank", "left", "bottom"),
+        (0.98, 0.02, "High IV rank<br>Low RR rank", "right", "bottom"),
     ]
     for x, y, text, xanchor, yanchor in labels:
         fig.add_annotation(
