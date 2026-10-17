@@ -114,25 +114,41 @@ def _add_quadrant_labels(fig: go.Figure) -> None:
     """Add corner annotations with trade ideas on hover."""
     labels = [
         (
-            0.02, 0.98, "Low IV percentile<br>High RR percentile ⓘ", "left", "top",
+            0.02,
+            0.98,
+            "Low IV percentile<br>High RR percentile ⓘ",
+            "left",
+            "top",
             "Calls are relatively rich, but overall IV is low.<br>"
             "Bearish: consider buying puts or put spreads.<br>"
             "Bullish: a call spread limits what you pay for calls.",
         ),
         (
-            0.98, 0.98, "High IV percentile<br>High RR percentile ⓘ", "right", "top",
+            0.98,
+            0.98,
+            "High IV percentile<br>High RR percentile ⓘ",
+            "right",
+            "top",
             "Overall IV is high and calls are relatively rich.<br>"
             "Fading upside: consider selling a call spread.<br>"
             "Bullish: a call spread limits the cost of rich calls.",
         ),
         (
-            0.02, 0.02, "Low IV percentile<br>Low RR percentile ⓘ", "left", "bottom",
+            0.02,
+            0.02,
+            "Low IV percentile<br>Low RR percentile ⓘ",
+            "left",
+            "bottom",
             "Overall IV is low and puts are relatively rich.<br>"
             "Bullish: consider buying calls or call spreads.<br>"
             "Willing to own lower: consider selling a put spread.",
         ),
         (
-            0.98, 0.02, "High IV percentile<br>Low RR percentile ⓘ", "right", "bottom",
+            0.98,
+            0.02,
+            "High IV percentile<br>Low RR percentile ⓘ",
+            "right",
+            "bottom",
             "Puts are expensive.<br>"
             "Bullish: sell a put credit spread (bet price holds up).<br>"
             "Bearish: buy a put debit spread; sell a farther OTM put to help pay for the long put.",
