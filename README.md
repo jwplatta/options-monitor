@@ -64,6 +64,25 @@ uv run mypy
 uv run pytest
 ```
 
+### Vol query benchmarks
+
+Run these from the host with the MinIO credentials in `.env`. Use `--endpoint
+http://localhost:9000` when `.env` is configured for Docker's
+`host.docker.internal` address:
+
+```bash
+uv run --env-file .env python scripts/benchmark_vol_regime.py --endpoint http://localhost:9000 --lookback-days 360
+uv run --env-file .env python scripts/benchmark_fixed_strike_vol.py --endpoint http://localhost:9000 --lookback-days 30
+```
+
+Both scripts default to QQQ, SPY, IWM, GLD, and CRWV. They time date discovery,
+Parquet downloads, queries, and calculations separately. `--as-of latest`
+(the default) anchors each ticker to its newest archived date; `--as-of today`
+uses the dashboard's current window. Use `--cache-dir /tmp/vol-bench-cache` to
+measure an uncached download without changing the dashboard's cache. The 360-day
+run can download several gigabytes to a fresh cache. Stage timings are
+inclusive, so nested stages overlap.
+
 ## Structure
 
 ```text
