@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 from datetime import date, timedelta
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -15,7 +14,7 @@ from options_monitor.charts.vol_spread import build_iv_rv_chart
 from options_monitor.data.candles import list_available_dates, load_candles
 
 
-def render_overview_tab(candle_dir: Path) -> None:
+def render_overview_tab() -> None:
     """Render the Overview subtab."""
     ov_c1, ov_c2, ov_c3, ov_c4 = st.columns([1, 1, 1, 1])
     with ov_c1:
@@ -27,7 +26,7 @@ def render_overview_tab(candle_dir: Path) -> None:
         )
 
     try:
-        start_avail, end_avail = list_available_dates("SPX", str(freq_ov), data_dir=candle_dir)
+        start_avail, end_avail = list_available_dates("SPX", str(freq_ov))
     except FileNotFoundError:
         st.error("SPX data not available.")
         return
@@ -51,14 +50,10 @@ def render_overview_tab(candle_dir: Path) -> None:
     ann_factor = 252 * f_per_day
 
     lookback_start = date.fromisoformat(str(start_sel)) - timedelta(days=window_days * 3)
-    spx_ov = load_candles(
-        "SPX", str(freq_ov), start=lookback_start, end=end_sel, data_dir=candle_dir
-    )
+    spx_ov = load_candles("SPX", str(freq_ov), start=lookback_start, end=end_sel)
 
     try:
-        iv_candles = load_candles(
-            iv_symbol, str(freq_ov), start=lookback_start, end=end_sel, data_dir=candle_dir
-        )
+        iv_candles = load_candles(iv_symbol, str(freq_ov), start=lookback_start, end=end_sel)
     except FileNotFoundError:
         st.error(f"{iv_symbol} data not available for frequency {freq_ov}.")
         return
@@ -81,9 +76,7 @@ def render_overview_tab(candle_dir: Path) -> None:
     spread = iv_rv_spread(merged["iv"], merged["rv"])
 
     try:
-        vix_full = load_candles(
-            "VIX", str(freq_ov), start=start_sel, end=end_sel, data_dir=candle_dir
-        )
+        vix_full = load_candles("VIX", str(freq_ov), start=start_sel, end=end_sel)
         corr = vix_spx_correlation(spx_ov, vix_full)
         st.metric(f"VIX-SPX Correlation ({freq_ov})", f"{corr:.3f}")
     except FileNotFoundError:
@@ -100,16 +93,12 @@ def render_overview_tab(candle_dir: Path) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
     try:
-        vix = load_candles("VIX", str(freq_ov), start=start_sel, end=end_sel, data_dir=candle_dir)
-        vix9d = load_candles(
-            "VIX9D", str(freq_ov), start=start_sel, end=end_sel, data_dir=candle_dir
-        )
+        vix = load_candles("VIX", str(freq_ov), start=start_sel, end=end_sel)
+        vix9d = load_candles("VIX9D", str(freq_ov), start=start_sel, end=end_sel)
         vix1d: pd.DataFrame | None = None
         if str(freq_ov) != "day":
             with contextlib.suppress(FileNotFoundError):
-                vix1d = load_candles(
-                    "VIX1D", str(freq_ov), start=start_sel, end=end_sel, data_dir=candle_dir
-                )
+                vix1d = load_candles("VIX1D", str(freq_ov), start=start_sel, end=end_sel)
         st.plotly_chart(
             build_vix_term_chart(vix, vix9d, vix1d, freq=str(freq_ov)),
             use_container_width=True,

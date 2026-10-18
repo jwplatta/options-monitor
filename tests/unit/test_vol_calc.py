@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import pytest
 from tractatus.calc.vol import expected_move, iv_rv_spread, realized_vol, vix_spx_correlation
 
-from options_monitor.data.candles import load_candles
-
 
 def test_realized_vol_shape_and_sanity(candle_dir: Path) -> None:
-    spx = load_candles("SPX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
+    spx = pd.read_csv(candle_dir / "SPX_day.csv", parse_dates=["datetime"])
     rv = realized_vol(spx["close"], window=30)
     assert rv.shape == spx["close"].shape
     valid = rv.dropna()
@@ -23,7 +20,7 @@ def test_realized_vol_shape_and_sanity(candle_dir: Path) -> None:
 
 
 def test_realized_vol_9day(candle_dir: Path) -> None:
-    spx = load_candles("SPX", "day", data_dir=candle_dir)
+    spx = pd.read_csv(candle_dir / "SPX_day.csv", parse_dates=["datetime"])
     rv9 = realized_vol(spx["close"], window=9)
     assert len(rv9.dropna()) > 0
 
@@ -37,8 +34,8 @@ def test_iv_rv_spread_elementwise() -> None:
 
 
 def test_vix_spx_correlation_returns_float(candle_dir: Path) -> None:
-    spx = load_candles("SPX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
-    vix = load_candles("VIX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
+    spx = pd.read_csv(candle_dir / "SPX_day.csv", parse_dates=["datetime"])
+    vix = pd.read_csv(candle_dir / "VIX_day.csv", parse_dates=["datetime"])
     corr = vix_spx_correlation(spx, vix)
     assert -1.0 <= corr <= 1.0
 

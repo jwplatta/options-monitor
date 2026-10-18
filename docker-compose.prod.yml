@@ -8,13 +8,13 @@ services:
     ports:
       - "${PORT:-8501}:8501"
     volumes:
-      - "${TICKRAKE_HOME:-$HOME/.tickrake}:/tickrake:ro"
+      - "${TRACTATUS_CACHE_DIR:-$HOME/.tractatus/cache}:/root/.tractatus/cache"
       - "${HOME}/.aws:/root/.aws:ro"
     environment:
-      TICKRAKE_HOME: /tickrake
-      TICKRAKE_DATA_DIR: /tickrake/data
+      TRACTATUS_CACHE_DIR: /root/.tractatus/cache
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
-      MINIO_BUCKET: "${MINIO_BUCKET:-tickrake-intraday}"
+      MINIO_INTRADAY_BUCKET: "${MINIO_INTRADAY_BUCKET:-tickrake-intraday}"
+      MINIO_HISTORICAL_BUCKET: "${MINIO_HISTORICAL_BUCKET:-tickrake-historical}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
       S3_BUCKET: "${S3_BUCKET:-}"

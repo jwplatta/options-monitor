@@ -3,58 +3,27 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from pathlib import Path
 
 import duckdb
 import pandas as pd
 import streamlit as st
 from tractatus.calc.vol import compute_risk_reversal
-from tractatus.tickrake.client import TickrakeClient
-from tractatus.tickrake.config import TickrakeConfig
 from tractatus.tickrake.options.queries import OPTIONS_DTYPES
 
 from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.charts.vol_regime import build_vol_regime_chart
-from options_monitor.config import OPTIONS_DIR, PARQUET_OPTIONS_DIR
-from options_monitor.data.intraday import find_latest_snapshots
-from options_monitor.data.options import (
-    list_snapshot_dates,
-    load_options_snapshot,
-)
+from options_monitor.data.intraday_options import find_latest_snapshots
+from options_monitor.data.options import load_options_snapshot
+from options_monitor.data.reader import get_reader
+from options_monitor.data.roots import available_roots
 
 _TARGET_DTE_OPTIONS = [5, 15, 30, 45]
 _LOOKBACK_OPTIONS = [30, 45, 60, 180, 360]
 
 
-def _default_client() -> TickrakeClient:
-    return TickrakeClient(TickrakeConfig.from_env())
-
-
-def _date_dir(parquet_dir: Path, sample_date: date) -> Path:
-    return (
-        parquet_dir
-        / f"{sample_date.year:04d}"
-        / f"{sample_date.month:02d}"
-        / f"{sample_date.day:02d}"
-    )
-
-
-def _available_sample_dates(
-    symbol: str,
-    indexed_dates: list[date],
-    parquet_dir: Path,
-    start_date: date,
-    end_date: date,
-) -> list[date]:
-    """Combine published index dates with local parquets in the requested window."""
-    dates = {d for d in indexed_dates if start_date <= d <= end_date}
-    for days_ago in range((end_date - start_date).days + 1):
-        sample_date = end_date - timedelta(days=days_ago)
-        day_dir = _date_dir(parquet_dir, sample_date)
-        path = day_dir / f"{symbol}_samples_{sample_date.isoformat()}.parquet"
-        if path.is_file():
-            dates.add(sample_date)
-    return sorted(dates)
+def _available_sample_dates(symbol: str, start_date: date, end_date: date) -> list[date]:
+    """Use the reader's published dates for the requested lookback window."""
+    return [d for d in get_reader().list_sample_dates(symbol) if start_date <= d <= end_date]
 
 
 def _pick_expiry(expirations: list[date], today: date, target_dte: int) -> date | None:
@@ -78,18 +47,11 @@ def _pick_expiry_from_parquet(
     sample_date: date,
     ref_date: date,
     target_dte: int,
-    _parquet_dir: str,
 ) -> date | None:
     """Pick the closest available expiry from one historical parquet."""
-    parquet_path = _date_dir(Path(_parquet_dir), sample_date) / (
-        f"{symbol}_samples_{sample_date.isoformat()}.parquet"
-    )
-    if not parquet_path.exists():
-        client = _default_client()
-        result = client.options_archive.get_parquet_path(symbol, sample_date)
-        if result is None:
-            return None
-        parquet_path = result
+    parquet_path = get_reader().get_parquet(symbol, sample_date)
+    if parquet_path is None:
+        return None
 
     try:
         with duckdb.connect() as conn:
@@ -109,19 +71,11 @@ def _load_eod_snapshot_for_expiry(
     symbol: str,
     sample_date: date,
     expiry: date,
-    _parquet_dir: str,
 ) -> pd.DataFrame:
     """Load the last snapshot for a symbol/date/expiry from archived parquet."""
-    parquet_path = _date_dir(Path(_parquet_dir), sample_date) / (
-        f"{symbol}_samples_{sample_date.isoformat()}.parquet"
-    )
-    if not parquet_path.exists():
-        # Try downloading via archive client
-        client = _default_client()
-        result = client.options_archive.get_parquet_path(symbol, sample_date)
-        if result is None:
-            return pd.DataFrame()
-        parquet_path = result
+    parquet_path = get_reader().get_parquet(symbol, sample_date)
+    if parquet_path is None:
+        return pd.DataFrame()
 
     expiry_str = expiry.isoformat()
     try:
@@ -156,18 +110,11 @@ def _load_daily_snapshots_for_expiry(
     symbol: str,
     sample_date: date,
     expiry: date,
-    parquet_dir: str,
 ) -> list[pd.DataFrame]:
     """Load the first chain at/after 10:30 ET and the day's last chain."""
-    parquet_path = _date_dir(Path(parquet_dir), sample_date) / (
-        f"{symbol}_samples_{sample_date.isoformat()}.parquet"
-    )
-    if not parquet_path.exists():
-        client = _default_client()
-        result = client.options_archive.get_parquet_path(symbol, sample_date)
-        if result is None:
-            return []
-        parquet_path = result
+    parquet_path = get_reader().get_parquet(symbol, sample_date)
+    if parquet_path is None:
+        return []
 
     expiry_str = expiry.isoformat()
     try:
@@ -208,26 +155,13 @@ def _compute_vol_regime_data(
     symbols: tuple[str, ...],
     target_dte: int,
     lookback_days: int,
-    _parquet_dir: str,
 ) -> pd.DataFrame:
     """Compute vol regime percentiles for all symbols."""
     today = date.today()
-    client = _default_client()
     rows: list[dict[str, object]] = []
 
     for symbol in symbols:
-        # The root JSON can lag behind local parquet publication.
-        try:
-            indexed_dates = list_snapshot_dates(symbol, client)
-        except Exception:
-            indexed_dates = []
-        hist_dates = _available_sample_dates(
-            symbol,
-            indexed_dates,
-            Path(_parquet_dir),
-            today - timedelta(days=lookback_days),
-            today,
-        )
+        hist_dates = _available_sample_dates(symbol, today - timedelta(days=lookback_days), today)
         if not hist_dates:
             continue
 
@@ -286,7 +220,6 @@ def _compute_vol_regime_data(
                 current_date,
                 current_date,
                 target_dte,
-                _parquet_dir,
             )
             if expiry is None:
                 continue
@@ -294,7 +227,6 @@ def _compute_vol_regime_data(
                 symbol,
                 current_date,
                 expiry,
-                _parquet_dir,
             )
             if current_expiry_df.empty:
                 continue
@@ -315,6 +247,9 @@ def _compute_vol_regime_data(
         # (the same fixed expiry often didn't exist weeks ago).
         lookback_start = current_date - timedelta(days=lookback_days)
         lookback_dates = [d for d in hist_dates if lookback_start <= d < current_date]
+        if not lookback_dates:
+            continue
+        get_reader().ensure_parquet_range(symbol, lookback_start, current_date)
         history_through = max(lookback_dates) if lookback_dates else None
 
         hist_ivs: list[float] = []
@@ -326,7 +261,6 @@ def _compute_vol_regime_data(
                 sample_date,
                 sample_date,
                 target_dte,
-                _parquet_dir,
             )
             if hist_expiry is None:
                 continue
@@ -335,7 +269,6 @@ def _compute_vol_regime_data(
                 symbol,
                 sample_date,
                 hist_expiry,
-                _parquet_dir,
             )
             for hist_df in hist_frames:
                 hist_spot_vals = hist_df["underlying_price"].dropna()
@@ -390,10 +323,9 @@ def _compute_vol_regime_data(
     return pd.DataFrame(rows)
 
 
-def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
+def render_vol_regime_tab() -> None:
     """Render the Vol Regime subtab."""
-    client = _default_client()
-    roots = client.options_filesystem.list_roots()
+    roots, roots_loaded = available_roots()
 
     # Streamlit's multiselect inserts a built-in "Select all" as its first
     # dropdown option. Hide that option only while this picker is open.
@@ -416,6 +348,8 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
             max_selections=20,
             help="Select tickers to plot on the vol regime chart",
         )
+        if not roots_loaded:
+            st.caption("Loading symbols…")
     with c2:
         target_dte = int(
             st.selectbox("Target DTE", _TARGET_DTE_OPTIONS, index=2, key="vol_regime_dte") or 30
@@ -439,12 +373,13 @@ def render_vol_regime_tab(options_dir: Path = OPTIONS_DIR) -> None:
         st.info("Select one or more symbols to generate the vol regime chart.")
         return
 
+    if lookback >= 180:
+        st.caption("First load may take several minutes while historical samples are cached.")
     with st.spinner(f"Computing vol regime for {len(selected)} symbols..."):
         data = _compute_vol_regime_data(
             tuple(selected),
             target_dte,
             lookback,
-            str(PARQUET_OPTIONS_DIR),
         )
 
     if data.empty:

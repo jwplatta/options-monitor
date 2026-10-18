@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import os
-
-import duckdb
 import streamlit as st
-from tractatus.tickrake import TickrakeClient
-from tractatus.tickrake.config import TickrakeConfig
 
-from options_monitor.config import CANDLE_DIR, OPTIONS_DIR
-from options_monitor.data.intraday import IntradayStore
+from options_monitor.data.roots import available_roots
 from options_monitor.tabs.flow import render_flow_tab
 from options_monitor.tabs.gex import render_gex_tab
 from options_monitor.tabs.history import render_history_tab
@@ -20,27 +14,26 @@ from options_monitor.tabs.vol import render_vol_tab
 _TOP_LEVEL_TABS = ["Vol", "GEX", "Flow", "OI", "History"]
 _DEFAULT_SYMBOL = "SPXW"
 
-# ---------------------------------------------------------------------------
-# Module-level singletons — constructed once per worker process
-# ---------------------------------------------------------------------------
 
-_duckdb_conn = duckdb.connect(os.environ.get("DUCKDB_OPTIONS_PATH", "/tmp/duckdb_options.db"))
-_duckdb_conn.execute("SET memory_limit='4GB'")
-_duckdb_conn.execute("SET threads=2")
-_duckdb_conn.execute("SET preserve_insertion_order=false")
-_duckdb_conn.execute("SET temp_directory='/tmp/duckdb_swap'")
-
-_intraday_store = IntradayStore.from_env()
-_tickrake_client = TickrakeClient(TickrakeConfig.from_env(), query_conn=_duckdb_conn)
-
-
-@st.cache_data(ttl=3600)
-def _available_roots() -> list[str]:
-    """Return sorted option roots from the archive filesystem and intraday MinIO index."""
-    archive_roots = _tickrake_client.options_filesystem.list_roots()
-    intraday_roots = _intraday_store.list_roots()
-    combined = sorted(set(archive_roots) | set(intraday_roots))
-    return combined if combined else [_DEFAULT_SYMBOL]
+@st.fragment(run_every="2s")
+def _render_symbol_selector() -> None:
+    roots, loaded = available_roots()
+    if loaded and not st.session_state.get("_roots_ready_rerun"):
+        st.session_state["_roots_ready_rerun"] = True
+        st.rerun(scope="app")
+    current = str(st.session_state.get("global_symbol", _DEFAULT_SYMBOL))
+    if current not in roots:
+        roots = [current, *roots]
+    default_idx = roots.index(_DEFAULT_SYMBOL) if _DEFAULT_SYMBOL in roots else 0
+    st.selectbox(
+        "Symbol",
+        roots,
+        index=default_idx,
+        key="global_symbol",
+        on_change=lambda: st.rerun(scope="app"),
+    )
+    if not loaded:
+        st.caption("Loading symbols…")
 
 
 _TAB_SPINNER_MSG: dict[str, str] = {
@@ -55,19 +48,19 @@ _TAB_SPINNER_MSG: dict[str, str] = {
 def _render_active_dashboard_tab(active_tab: str) -> None:
     """Render only the selected top-level dashboard panel."""
     if active_tab == "Vol":
-        render_vol_tab(candle_dir=CANDLE_DIR)
+        render_vol_tab()
         return
     if active_tab == "GEX":
-        render_gex_tab(options_dir=OPTIONS_DIR, candle_dir=CANDLE_DIR)
+        render_gex_tab()
         return
     if active_tab == "History":
-        render_history_tab(options_dir=OPTIONS_DIR, candle_dir=CANDLE_DIR)
+        render_history_tab()
         return
     if active_tab == "Flow":
-        render_flow_tab(options_dir=OPTIONS_DIR)
+        render_flow_tab()
         return
     if active_tab == "OI":
-        render_oi_tab(options_dir=OPTIONS_DIR)
+        render_oi_tab()
         return
     raise ValueError(f"Unknown dashboard tab: {active_tab}")
 
@@ -82,9 +75,7 @@ def render_dashboard() -> None:
 
     with st.sidebar:
         st.title("Options Monitor")
-        roots = _available_roots()
-        default_idx = roots.index(_DEFAULT_SYMBOL) if _DEFAULT_SYMBOL in roots else 0
-        st.selectbox("Symbol", roots, index=default_idx, key="global_symbol")
+        _render_symbol_selector()
         active_tab = str(
             st.radio(
                 "Navigation",

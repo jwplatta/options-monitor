@@ -13,14 +13,7 @@ Options-data and market-monitoring dashboard built with Streamlit. Displays GEX,
 
 ## Data Sources
 
-| Data | Source |
-|---|---|
-| Intraday option chains (latest snapshot) | MinIO via S3 API — `intraday/schwab/{ROOT}.json` index + per-expiry CSVs |
-| Intraday time-series (Flow / History tabs) | Local timestamped CSVs written by tickrake jobs (`~/.tickrake/data/options/schwab/`) |
-| Historical option chains | Local parquet cache; downloaded from S3 on cache miss |
-| Historical index | Local `ROOT.json` written by the tickrake reconciler at 16:00 weekdays |
-
-All tickrake I/O is wrapped in `src/options_monitor/tickrake/` — a clean extraction boundary designed for eventual packaging as a standalone `TickrakeClient`. See [tickrake](https://github.com/jwplatta/tickrake) for the data pipeline that populates these sources.
+Tractatus `DataReader` reads intraday option snapshots and `ibkr-paper` candles from MinIO. Historical options come from the `tickrake-historical` MinIO bucket, with the Tractatus Iceberg fallback when configured. The reader caches Parquet files under `~/.tractatus/cache` for DuckDB historical queries.
 
 ## Configuration
 
@@ -32,16 +25,13 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |---|---|---|
-| `TICKRAKE_HOME` | `~/.tickrake` | Root of the local tickrake data directory |
-| `MINIO_ENDPOINT` | `http://localhost:9000` | MinIO endpoint for intraday data |
-| `MINIO_BUCKET` | `tickrake-intraday` | MinIO bucket |
+| `MINIO_ENDPOINT` | `http://localhost:9000` | MinIO API endpoint |
+| `MINIO_INTRADAY_BUCKET` | `tickrake-intraday` | Intraday snapshots and candles |
+| `MINIO_HISTORICAL_BUCKET` | `tickrake-historical` | Historical Parquet files |
 | `MINIO_ACCESS_KEY` | — | MinIO access key |
 | `MINIO_SECRET_KEY` | — | MinIO secret key |
-| `S3_BUCKET` | — | AWS S3 bucket for historical archive |
-| `S3_REGION` | `us-east-1` | AWS region |
-| `PORT` | `8503` | Docker host port |
-
-AWS credentials for S3 are resolved via the standard credential chain (`~/.aws/credentials`, IAM role, etc.) — no explicit key variables needed.
+| `TRACTATUS_CACHE_DIR` | `~/.tractatus/cache` | Local Parquet cache |
+| `PORT` | `8501` | Docker host port |
 
 ## Quick Start
 
@@ -79,9 +69,7 @@ uv run pytest
 ```text
 src/options_monitor/
 ├── app.py              # Streamlit entrypoint and tab routing
-├── config.py           # app-level path config
-├── tickrake/           # MinIO + S3 + filesystem data access (TickrakeClient facade)
-├── data/               # options snapshot loading and candle data access
+├── data/               # shared Tractatus reader and cached dashboard loaders
 ├── calc/               # pure computation — GEX, flow, vol, OI, spreads
 ├── charts/             # Plotly figure builders
 └── tabs/               # Streamlit tab renderers (gex, flow, oi, vol/*, history)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -23,7 +22,7 @@ from options_monitor.charts.gex_single import build_gex_single_expiry_chart
 from options_monitor.charts.gex_term_structure import build_gex_term_structure_chart
 from options_monitor.charts.skew_indicators import build_skew_indicators
 from options_monitor.charts.vol_skew import build_vol_skew_chart
-from options_monitor.data.intraday import (
+from options_monitor.data.intraday_options import (
     find_intraday_updated_at,
     find_latest_snapshots,
     list_expirations,
@@ -84,7 +83,6 @@ def _load_window_snapshot_data(
     days_out: int,
     include_0dte: bool,
     range_pct: float,
-    options_dir: Path,
 ) -> tuple[pd.DataFrame, float, int, datetime | None, bool] | None:
     snapshots = find_latest_snapshots(
         symbol,
@@ -117,7 +115,6 @@ def _load_single_expiry_snapshot_data(
     symbol: str,
     selected_exp: date,
     range_pct: float,
-    options_dir: Path,
 ) -> tuple[pd.DataFrame, float, int, datetime | None, bool] | None:
     single_snapshots = find_latest_snapshots(
         symbol,
@@ -141,7 +138,7 @@ def _load_single_expiry_snapshot_data(
     return single_opts, spot, strike_range, sampled_at, True
 
 
-def _select_single_expiry(symbol: str, today: date, options_dir: Path) -> str | None:
+def _select_single_expiry(symbol: str, today: date) -> str | None:
     available_exps_desc = sorted(
         list_expirations(symbol) or list_expirations_from_archive(symbol),
         reverse=True,
@@ -167,7 +164,6 @@ def _render_gex_view(
     today: date,
     include_0dte: bool,
     range_pct: float,
-    options_dir: Path,
 ) -> None:
     days_out = int(
         st.radio(
@@ -183,7 +179,6 @@ def _render_gex_view(
         days_out=days_out,
         include_0dte=include_0dte,
         range_pct=range_pct,
-        options_dir=options_dir,
     )
     if loaded is None:
         st.warning(f"No {symbol} options snapshots found for next {days_out} days.")
@@ -245,7 +240,6 @@ def _render_gex_history_view(
     symbol: str,
     include_0dte: bool,
     range_pct: float,
-    options_dir: Path,
 ) -> None:
     sample_dates = list_snapshot_dates(symbol)
     if not sample_dates:
@@ -391,9 +385,8 @@ def _render_chains_view(
     symbol: str,
     selected_exp: date,
     range_pct: float,
-    options_dir: Path,
 ) -> None:
-    loaded = _load_single_expiry_snapshot_data(symbol, selected_exp, range_pct, options_dir)
+    loaded = _load_single_expiry_snapshot_data(symbol, selected_exp, range_pct)
     if loaded is None:
         st.warning(f"No {symbol} options snapshots found for {selected_exp.isoformat()}.")
         return
@@ -467,7 +460,6 @@ def _render_history_view(
     symbol: str,
     selected_exp: date,
     range_pct: float,
-    options_dir: Path,
 ) -> None:
     sample_dates = list_snapshot_dates_for_expiry(symbol, selected_exp)
     if not sample_dates:
@@ -560,7 +552,6 @@ def _render_gamma_heatmap_view(
     today: date,
     include_0dte: bool,
     range_pct: float,
-    options_dir: Path,
 ) -> None:
     gh_date_range = st.date_input(
         "Expiration date range",
@@ -584,7 +575,6 @@ def _render_gamma_heatmap_view(
         days_out=(gh_end - gh_start).days,
         include_0dte=include_0dte,
         range_pct=range_pct,
-        options_dir=options_dir,
     )
     if loaded is None:
         st.warning(f"No {symbol} snapshots found for selected date range.")
@@ -643,13 +633,12 @@ def _render_active_gex_view(
     include_0dte: bool,
     range_pct: float,
     selected_exp_str: str | None,
-    options_dir: Path,
 ) -> None:
     if active_view == "GEX":
-        _render_gex_view(symbol, today, include_0dte, range_pct, options_dir)
+        _render_gex_view(symbol, today, include_0dte, range_pct)
         return
     if active_view == "Gamma Heatmap":
-        _render_gamma_heatmap_view(symbol, today, include_0dte, range_pct, options_dir)
+        _render_gamma_heatmap_view(symbol, today, include_0dte, range_pct)
         return
     if active_view not in _SINGLE_EXPIRY_VIEWS:
         raise ValueError(f"Unknown GEX view: {active_view}")
@@ -660,13 +649,12 @@ def _render_active_gex_view(
 
     selected_exp = date.fromisoformat(selected_exp_str)
     if active_view == "Chains":
-        _render_chains_view(symbol, selected_exp, range_pct, options_dir)
+        _render_chains_view(symbol, selected_exp, range_pct)
         return
     raise ValueError(f"Unknown GEX view: {active_view}")
 
 
-def render_gex_tab(options_dir: Path, candle_dir: Path) -> None:
-    del candle_dir
+def render_gex_tab() -> None:
     st.subheader("GEX")
 
     @st.fragment(run_every="5m")
@@ -705,7 +693,7 @@ def render_gex_tab(options_dir: Path, candle_dir: Path) -> None:
         if active_view in _SINGLE_EXPIRY_VIEWS:
             with col_ctrl:
                 st.divider()
-                selected_exp_str = _select_single_expiry(symbol, today, options_dir)
+                selected_exp_str = _select_single_expiry(symbol, today)
 
         with col_chart:
             _render_active_gex_view(
@@ -715,7 +703,6 @@ def render_gex_tab(options_dir: Path, candle_dir: Path) -> None:
                 include_0dte=include_0dte,
                 range_pct=range_pct,
                 selected_exp_str=selected_exp_str,
-                options_dir=options_dir,
             )
 
     _render()

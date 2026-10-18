@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Load only the selected Vol subtab and defer Vol Regime historical caching until a current chain is usable.
+- Switched intraday options, historical Parquet, and ibkr-paper candles to Tractatus DataReader with a shared DuckDB connection and local reader cache.
 - Migrated `options_monitor.tickrake` to `tractatus.tickrake` — removed local tickrake module, now imported from the `tractatus` package
 - Extracted pure calc modules to `tractatus.calc`: `gex`, `gex_term_structure`, `vol`, `ma`, `oi`, `oi_zscore`, `iv_zscore`, `fixed_strike_vol`
 - Refactored `gex_term_structure.compute_gex_term_structure` to accept `dict[date, DataFrame]` instead of `dict[date, Path]`
