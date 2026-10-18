@@ -87,7 +87,8 @@ def _load_eod_snapshot_for_expiry(
                     FROM read_parquet(?)
                     WHERE expiration_date = ?
                 )
-                SELECT t.*
+                SELECT t.sampled_at, t.expiration_date, t.strike, t.volatility,
+                       t.delta, t.contract_type, t.underlying_price
                 FROM read_parquet(?) t, last_sample ls
                 WHERE t.expiration_date = ?
                   AND t.sampled_at = ls.max_sa
@@ -131,7 +132,8 @@ def _load_daily_snapshots_for_expiry(
                     FROM read_parquet(?)
                     WHERE expiration_date = ?
                 )
-                SELECT t.*
+                SELECT t.sampled_at, t.expiration_date, t.strike, t.volatility,
+                       t.delta, t.contract_type, t.underlying_price
                 FROM read_parquet(?) t, selected_times s
                 WHERE t.expiration_date = ?
                   AND t.sampled_at IN (s.after_open, s.last_sample)

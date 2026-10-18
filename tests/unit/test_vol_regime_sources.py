@@ -23,6 +23,9 @@ def _fixture_parquet(tmp_path: Path) -> tuple[Path, date, date, pd.DatetimeIndex
             "expiration_date": [expiry] * len(times),
             "contract_type": ["call"] * len(times),
             "underlying_price": [100.0] * len(times),
+            "strike": [100.0] * len(times),
+            "volatility": [25.0] * len(times),
+            "delta": [0.5] * len(times),
         }
     ).to_parquet(path)
     return path, sample_date, expiry, times
@@ -46,7 +49,36 @@ def test_daily_history_uses_first_post_1030_and_last(monkeypatch, tmp_path: Path
     frames = vol_regime._load_daily_snapshots_for_expiry("GLD", sample_date, expiry)
     assert len(frames) == 2
     assert [frame["sampled_at"].iloc[0] for frame in frames] == [times[1], times[2]]
+    assert set(frames[0]) == {
+        "sampled_at",
+        "expiration_date",
+        "strike",
+        "volatility",
+        "delta",
+        "contract_type",
+        "underlying_price",
+    }
     reader.get_parquet.assert_called_once_with("GLD", sample_date)
+
+
+def test_eod_snapshot_reads_vol_columns(monkeypatch, tmp_path: Path) -> None:
+    path, sample_date, expiry, times = _fixture_parquet(tmp_path)
+    reader = MagicMock()
+    reader.get_parquet.return_value = path
+    monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
+    vol_regime._load_eod_snapshot_for_expiry.clear()
+    frame = vol_regime._load_eod_snapshot_for_expiry("GLD", sample_date, expiry)
+    assert len(frame) == 1
+    assert frame["sampled_at"].iloc[0] == times[-1]
+    assert set(frame) == {
+        "sampled_at",
+        "expiration_date",
+        "strike",
+        "volatility",
+        "delta",
+        "contract_type",
+        "underlying_price",
+    }
 
 
 def test_daily_history_missing_parquet(monkeypatch) -> None:
