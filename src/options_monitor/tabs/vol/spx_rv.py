@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -13,7 +12,7 @@ from options_monitor.charts.vol_of_vol import build_vol_of_vol_chart
 from options_monitor.data.candles import list_available_dates, load_candles
 
 
-def render_spx_rv_tab(candle_dir: Path) -> None:
+def render_spx_rv_tab() -> None:
     """Render the SPX RV subtab."""
     rv_c1, rv_c2, rv_c3, rv_c4, rv_c5 = st.columns([1, 1, 1, 1, 1])
     with rv_c1:
@@ -47,9 +46,7 @@ def render_spx_rv_tab(candle_dir: Path) -> None:
     st.divider()
 
     try:
-        start_avail_rv, end_avail_rv = list_available_dates(
-            "SPX", str(freq_rv), data_dir=candle_dir
-        )
+        start_avail_rv, end_avail_rv = list_available_dates("SPX", str(freq_rv))
     except FileNotFoundError:
         st.error("SPX data not available.")
         return
@@ -65,9 +62,7 @@ def render_spx_rv_tab(candle_dir: Path) -> None:
 
     lookback_rv = max(rv_slow_days, 30) * 3
     lookback_start_rv = date.fromisoformat(str(start_rv)) - timedelta(days=lookback_rv)
-    spx_rv = load_candles(
-        "SPX", str(freq_rv), start=lookback_start_rv, end=end_rv, data_dir=candle_dir
-    )
+    spx_rv = load_candles("SPX", str(freq_rv), start=lookback_start_rv, end=end_rv)
 
     rv_fig = build_rv_acceleration_chart(
         spx_rv,
@@ -92,9 +87,7 @@ def render_spx_rv_tab(candle_dir: Path) -> None:
     vov_lookback_days = ((vov_n + vov_m) // vov_bars_per_day + 1) * 2
     vov_lookback_start = date.fromisoformat(str(start_rv)) - timedelta(days=vov_lookback_days)
     try:
-        spx_vov = load_candles(
-            "SPX", str(vov_freq), start=vov_lookback_start, end=end_rv, data_dir=candle_dir
-        )
+        spx_vov = load_candles("SPX", str(vov_freq), start=vov_lookback_start, end=end_rv)
         if spx_vov.empty:
             st.warning(f"No {vov_freq} SPX data for selected range.")
         else:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import sys
 import tempfile
@@ -48,7 +49,14 @@ def _app_path() -> Path:
 
 @pytest.fixture(scope="session")
 def streamlit_server() -> Generator[str, None, None]:
-    """Start a Streamlit server on port 8502 for the test session."""
+    """Start an isolated Streamlit server on a free local port."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    server_env = os.environ.copy()
+    server_env["DUCKDB_OPTIONS_PATH"] = os.path.join(
+        tempfile.gettempdir(), f"duckdb_options_ui_test_{os.getpid()}_{port}.db"
+    )
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -56,17 +64,18 @@ def streamlit_server() -> Generator[str, None, None]:
             "streamlit",
             "run",
             str(_app_path()),
-            "--server.port=8502",
+            f"--server.port={port}",
             "--server.headless=true",
             "--browser.gatherUsageStats=false",
             "--server.runOnSave=false",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=server_env,
     )
     for _ in range(30):
         try:
-            r = requests.get("http://localhost:8502/_stcore/health", timeout=1)
+            r = requests.get(f"http://localhost:{port}/_stcore/health", timeout=1)
             if r.status_code == 200:
                 break
         except Exception:
@@ -75,7 +84,7 @@ def streamlit_server() -> Generator[str, None, None]:
         proc.kill()
         raise RuntimeError("Streamlit server did not start within 30 seconds")
 
-    yield "http://localhost:8502"
+    yield f"http://localhost:{port}"
 
     proc.terminate()
     proc.wait(timeout=10)

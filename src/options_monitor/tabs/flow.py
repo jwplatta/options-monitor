@@ -16,7 +16,7 @@ from options_monitor.calc.flow_tape import compute_flow_tape
 from options_monitor.charts.flow_heatmap import build_flow_heatmap_chart
 from options_monitor.charts.flow_profile import build_flow_profile_chart
 from options_monitor.charts.flow_tape import build_flow_tape_chart
-from options_monitor.data.intraday import find_series_snapshots, list_expirations
+from options_monitor.data.intraday_options import find_series_snapshots, list_expirations
 from options_monitor.data.options import (
     list_expirations_for_window_on_date,
     list_snapshot_dates,
@@ -275,7 +275,6 @@ def _render_intraday_flow_view(
     sample_date: date,
     spot: float,
     range_pct: float,
-    options_dir: Path,
     preloaded: pd.DataFrame | None = None,
 ) -> None:
     all_expiry_snapshots: list[tuple[datetime, Path]] = []
@@ -345,7 +344,7 @@ def _render_intraday_flow_view(
     st.plotly_chart(fig_flow, use_container_width=True)
 
 
-def render_flow_tab(options_dir: Path) -> None:
+def render_flow_tab() -> None:
     """Render the Flow tab with Flow Tape and Flow Profile charts."""
     symbol = str(st.session_state.get("global_symbol", "SPXW"))
     st.subheader("Flow")
@@ -517,6 +516,5 @@ def render_flow_tab(options_dir: Path) -> None:
                 sample_date=sample_date,
                 spot=spot,
                 range_pct=range_pct,
-                options_dir=options_dir,
                 preloaded=preloaded,
             )

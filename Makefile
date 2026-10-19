@@ -37,7 +37,8 @@ dev-shared-stop:  ## Stop the shared-MinIO dev app only
 
 dev: dev-services  ## Start MinIO + run Streamlit locally (port 8502)
 	MINIO_ENDPOINT=http://localhost:9002 \
-	MINIO_BUCKET=tickrake-intraday \
+	MINIO_INTRADAY_BUCKET=tickrake-intraday \
+	MINIO_HISTORICAL_BUCKET=tickrake-historical \
 	MINIO_ACCESS_KEY=minioadmin \
 	MINIO_SECRET_KEY=minioadmin \
 	uv run streamlit run src/options_monitor/app.py --server.port 8502

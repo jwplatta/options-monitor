@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -12,8 +11,7 @@ import streamlit as st
 from tractatus.calc.oi import build_oi_matrix
 from tractatus.calc.oi_zscore import build_oi_bucket_stats, compute_oi_zscore_matrix
 
-from options_monitor.config import OPTIONS_DIR, PARQUET_OPTIONS_DIR
-from options_monitor.data.intraday import find_latest_snapshots
+from options_monitor.data.intraday_options import find_latest_snapshots
 from options_monitor.data.options import load_historical_sample_window, load_options_snapshot
 
 _CHICAGO = ZoneInfo("America/Chicago")
@@ -24,7 +22,6 @@ def _load_oi_historical_frames(
     symbol: str,
     lookback_days: int,
     interval_minutes: int,
-    options_dir: Path,
 ) -> tuple[list[pd.DataFrame], list[datetime]]:
     """Load interval-downsampled historical chain snapshots for z-score bucket building.
 
@@ -34,9 +31,8 @@ def _load_oi_historical_frames(
     """
     today = date.today()
     lookback_start = today - timedelta(days=lookback_days)
-    parquet_glob = str(PARQUET_OPTIONS_DIR / "*" / "*" / "*" / f"{symbol}_samples_*.parquet")
 
-    df = load_historical_sample_window(symbol, parquet_glob, lookback_start, interval_minutes)
+    df = load_historical_sample_window(symbol, lookback_start, interval_minutes)
     if df.empty:
         return [], []
 
@@ -51,7 +47,7 @@ def _load_oi_historical_frames(
     return frames, sample_datetimes
 
 
-def render_oi_tab(options_dir: Path = OPTIONS_DIR) -> None:
+def render_oi_tab() -> None:
     """Render the Open Interest z-score tab."""
     symbol = str(st.session_state.get("global_symbol", "SPXW"))
     c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1, 1, 1])
@@ -109,9 +105,7 @@ def render_oi_tab(options_dir: Path = OPTIONS_DIR) -> None:
 
     zscore_matrix: pd.DataFrame | None = None
     with st.spinner("Loading historical data for z-scores…"):
-        hist_frames, hist_datetimes = _load_oi_historical_frames(
-            symbol, oi_lookback, oi_interval, options_dir
-        )
+        hist_frames, hist_datetimes = _load_oi_historical_frames(symbol, oi_lookback, oi_interval)
     if hist_frames:
         bucket_stats = build_oi_bucket_stats(hist_frames, hist_datetimes)
         zscore_matrix = compute_oi_zscore_matrix(

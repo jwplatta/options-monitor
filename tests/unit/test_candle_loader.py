@@ -1,9 +1,7 @@
-"""Tests for the candle data loader."""
+"""Candle loader preserves provider and date filtering."""
 
-from __future__ import annotations
-
-from datetime import date, datetime
-from pathlib import Path
+from datetime import date
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -11,27 +9,30 @@ import pytest
 from options_monitor.data.candles import list_available_dates, load_candles
 
 
-def test_load_candles_returns_expected_columns(candle_dir: Path) -> None:
-    df = load_candles("SPX", "day", data_dir=candle_dir)
-    assert list(df.columns) == ["datetime", "open", "high", "low", "close", "volume"]
+def test_candles_use_ibkr_paper_and_filter_dates() -> None:
+    reader = MagicMock()
+    reader.load_candles.return_value = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-03"]),
+            "open": [1.0] * 3,
+            "high": [2.0] * 3,
+            "low": [0.5] * 3,
+            "close": [1.5] * 3,
+            "volume": [100.0] * 3,
+        }
+    )
+    assert (
+        len(
+            load_candles("SPX", "day", start=date(2026, 1, 2), end=date(2026, 1, 2), _reader=reader)
+        )
+        == 1
+    )
+    assert list_available_dates("SPX", "day", _reader=reader)[0].date() == date(2026, 1, 1)
+    reader.load_candles.assert_called_once_with("SPX", "day", provider="ibkr-paper")
 
 
-def test_load_candles_date_range_filter(candle_dir: Path) -> None:
-    start = date(2026, 1, 1)
-    end = date(2026, 2, 1)
-    df = load_candles("SPX", "day", data_dir=candle_dir, start=start, end=end)
-    tz = df["datetime"].dt.tz
-    assert df["datetime"].min() >= pd.Timestamp("2026-01-01", tz=tz)
-    assert df["datetime"].max() <= pd.Timestamp("2026-02-01", tz=tz)
-
-
-def test_load_candles_raises_for_missing_symbol(candle_dir: Path) -> None:
+def test_missing_candle_file_propagates() -> None:
+    reader = MagicMock()
+    reader.load_candles.side_effect = FileNotFoundError("missing")
     with pytest.raises(FileNotFoundError):
-        load_candles("NOTREAL", "day", data_dir=candle_dir)
-
-
-def test_list_available_dates_returns_range(candle_dir: Path) -> None:
-    start, end = list_available_dates("SPX", "day", data_dir=candle_dir)
-    assert isinstance(start, datetime)
-    assert isinstance(end, datetime)
-    assert end > start
+        load_candles("UNKNOWN", "day", _reader=reader)

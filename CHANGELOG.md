@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Changed
+- Simplified Vol subtabs to Fixed Strike Vol, Volatility Skew, and Vol Regime. Added a latest 30-DTE skew chart against a persistent historical 10th–90th percentile band.
+- Vol Regime now refreshes its current chain every 30 seconds and stores source-validated historical IV and risk-reversal observations in a separate persistent Options Monitor SQLite cache.
+- Read only the Parquet columns needed for Vol Regime IV and risk reversal, reducing warm-cache load time.
+- Load only the selected Vol subtab and defer Vol Regime historical caching until a current chain is usable.
+- Switched intraday options, historical Parquet, and ibkr-paper candles to Tractatus DataReader with a shared DuckDB connection and local reader cache.
 - Migrated `options_monitor.tickrake` to `tractatus.tickrake` — removed local tickrake module, now imported from the `tractatus` package
 - Extracted pure calc modules to `tractatus.calc`: `gex`, `gex_term_structure`, `vol`, `ma`, `oi`, `oi_zscore`, `iv_zscore`, `fixed_strike_vol`
 - Refactored `gex_term_structure.compute_gex_term_structure` to accept `dict[date, DataFrame]` instead of `dict[date, Path]`

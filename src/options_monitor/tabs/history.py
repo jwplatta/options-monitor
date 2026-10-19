@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
 
 import streamlit as st
 
@@ -23,10 +22,9 @@ def _render_active_history_view(
     include_0dte: bool,
     range_pct: float,
     selected_exp_str: str | None,
-    options_dir: Path,
 ) -> None:
     if active_view == "GEX History":
-        _render_gex_history_view(symbol, include_0dte, range_pct, options_dir)
+        _render_gex_history_view(symbol, include_0dte, range_pct)
         return
 
     if selected_exp_str is None:
@@ -34,14 +32,13 @@ def _render_active_history_view(
         return
 
     if active_view == "Chain GEX History":
-        _render_history_view(symbol, date.fromisoformat(selected_exp_str), range_pct, options_dir)
+        _render_history_view(symbol, date.fromisoformat(selected_exp_str), range_pct)
         return
 
     raise ValueError(f"Unknown History view: {active_view}")
 
 
-def render_history_tab(options_dir: Path, candle_dir: Path) -> None:
-    del candle_dir
+def render_history_tab() -> None:
     st.subheader("History")
 
     @st.fragment(run_every="5m")
@@ -80,7 +77,7 @@ def render_history_tab(options_dir: Path, candle_dir: Path) -> None:
         if active_view in _SINGLE_EXPIRY_VIEWS:
             with col_ctrl:
                 st.divider()
-                selected_exp_str = _select_single_expiry(symbol, today, options_dir)
+                selected_exp_str = _select_single_expiry(symbol, today)
 
         with col_chart:
             _render_active_history_view(
@@ -89,7 +86,6 @@ def render_history_tab(options_dir: Path, candle_dir: Path) -> None:
                 include_0dte=include_0dte,
                 range_pct=range_pct,
                 selected_exp_str=selected_exp_str,
-                options_dir=options_dir,
             )
 
     _render()

@@ -2,35 +2,34 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import streamlit as st
 
-from options_monitor.config import OPTIONS_DIR
 from options_monitor.tabs.vol.fixed_strike import render_fixed_strike_tab
-from options_monitor.tabs.vol.overview import render_overview_tab
-from options_monitor.tabs.vol.spx_rv import render_spx_rv_tab
+from options_monitor.tabs.vol.skew_history import render_skew_history_tab
 from options_monitor.tabs.vol.vol_regime import render_vol_regime_tab
 
 
-def render_vol_tab(candle_dir: Path, options_dir: Path = OPTIONS_DIR) -> None:
+def render_vol_tab() -> None:
     st.subheader("Volatility")
 
-    tab_overview, tab_spx_rv, tab_fsv, tab_regime = st.tabs(
-        ["Overview", "SPX RV", "Fixed Strike Vol", "Vol Regime"]
+    tab_fsv, tab_skew, tab_regime = st.tabs(
+        ["Fixed Strike Vol", "Volatility Skew", "Vol Regime"],
+        default="Vol Regime",
+        on_change="rerun",
+        key="vol_subtab",
     )
 
-    with tab_overview:
-        _safe_render(render_overview_tab, candle_dir)
-
-    with tab_spx_rv:
-        _safe_render(render_spx_rv_tab, candle_dir)
-
     with tab_fsv:
-        _safe_render(render_fixed_strike_tab, options_dir)
+        if tab_fsv.open:
+            _safe_render(render_fixed_strike_tab)
+
+    with tab_skew:
+        if tab_skew.open:
+            _safe_render(render_skew_history_tab)
 
     with tab_regime:
-        _safe_render(render_vol_regime_tab, options_dir)
+        if tab_regime.open:
+            _safe_render(render_vol_regime_tab)
 
 
 def _safe_render(render_fn: object, *args: object) -> None:

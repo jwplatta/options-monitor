@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -16,12 +15,11 @@ from options_monitor.charts.price import build_sma_price_chart
 from options_monitor.charts.vix_term import build_vix_term_chart
 from options_monitor.charts.vol_spread import build_iv_rv_chart
 from options_monitor.charts.volume import build_sma_volume_chart
-from options_monitor.data.candles import load_candles
 
 
 @pytest.fixture()
 def spx_day(candle_dir: Path) -> pd.DataFrame:
-    return load_candles("SPX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
+    return pd.read_csv(candle_dir / "SPX_day.csv", parse_dates=["datetime"])
 
 
 def test_build_sma_price_chart_returns_figure(spx_day: pd.DataFrame) -> None:
@@ -58,8 +56,8 @@ def test_build_iv_rv_chart_raises_on_misaligned_series() -> None:
 
 
 def test_build_vix_term_chart_without_vix1d(candle_dir: Path) -> None:
-    vix = load_candles("VIX", "day", data_dir=candle_dir, start=date(2026, 1, 1))
-    vix9d = load_candles("VIX9D", "day", data_dir=candle_dir, start=date(2026, 1, 1))
+    vix = pd.read_csv(candle_dir / "VIX_day.csv", parse_dates=["datetime"])
+    vix9d = pd.read_csv(candle_dir / "VIX9D_day.csv", parse_dates=["datetime"])
     fig = build_vix_term_chart(vix=vix, vix9d=vix9d)
     assert isinstance(fig, go.Figure)
     assert len(fig.data) == 2  # VIX + VIX9D only
