@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Vol Regime now refreshes its current chain every 30 seconds and stores source-validated historical IV and risk-reversal observations in a separate persistent Options Monitor SQLite cache.
 - Read only the Parquet columns needed for Vol Regime IV and risk reversal, reducing warm-cache load time.
 - Load only the selected Vol subtab and defer Vol Regime historical caching until a current chain is usable.
 - Switched intraday options, historical Parquet, and ibkr-paper candles to Tractatus DataReader with a shared DuckDB connection and local reader cache.

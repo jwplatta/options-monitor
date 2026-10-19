@@ -13,6 +13,7 @@ export MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://localhost:9000}"
 export MINIO_INTRADAY_BUCKET="${MINIO_INTRADAY_BUCKET:-tickrake-intraday}"
 export MINIO_HISTORICAL_BUCKET="${MINIO_HISTORICAL_BUCKET:-tickrake-historical}"
 export TRACTATUS_CACHE_DIR="${TRACTATUS_CACHE_DIR:-$HOME/.tractatus/cache}"
+export OPTIONS_MONITOR_CACHE_DIR="${OPTIONS_MONITOR_CACHE_DIR:-$HOME/.cache/options-monitor}"
 export MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
 export MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
 

@@ -9,9 +9,11 @@ services:
       - "${PORT:-8501}:8501"
     volumes:
       - "${TRACTATUS_CACHE_DIR:-$HOME/.tractatus/cache}:/root/.tractatus/cache"
+      - "${OPTIONS_MONITOR_CACHE_DIR:-$HOME/.cache/options-monitor}:/root/.cache/options-monitor"
       - "${HOME}/.aws:/root/.aws:ro"
     environment:
       TRACTATUS_CACHE_DIR: /root/.tractatus/cache
+      OPTIONS_MONITOR_CACHE_DIR: /root/.cache/options-monitor
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
       MINIO_INTRADAY_BUCKET: "${MINIO_INTRADAY_BUCKET:-tickrake-intraday}"
       MINIO_HISTORICAL_BUCKET: "${MINIO_HISTORICAL_BUCKET:-tickrake-historical}"

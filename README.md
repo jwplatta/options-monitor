@@ -31,6 +31,7 @@ cp .env.example .env
 | `MINIO_ACCESS_KEY` | — | MinIO access key |
 | `MINIO_SECRET_KEY` | — | MinIO secret key |
 | `TRACTATUS_CACHE_DIR` | `~/.tractatus/cache` | Local Parquet cache |
+| `OPTIONS_MONITOR_CACHE_DIR` | `~/.cache/options-monitor` | Persistent Vol Regime SQLite observations; mounted separately from Tractatus in Docker |
 | `PORT` | `8501` | Docker host port |
 
 ## Quick Start
@@ -47,6 +48,14 @@ make dev-shared
 ```
 
 `make dev-shared` runs an isolated development container at <http://localhost:8502> and connects to the existing MinIO endpoint (default `http://host.docker.internal:9000`). It does not start, stop, or modify MinIO. Stop only this development container with `make dev-shared-stop`.
+
+Vol Regime stores historical ATM IV and risk-reversal observations in
+`$OPTIONS_MONITOR_CACHE_DIR/vol_regime.sqlite3`. SQLite is embedded in the app;
+there is no separate database container. The first chart load fills missing
+observations from historical Parquet. Later loads reuse them across app restarts.
+Rows do not expire by age; a changed source file or calculation version causes
+recomputation. The chart checks the latest published intraday chain on each
+30-second refresh.
 
 Or manually:
 

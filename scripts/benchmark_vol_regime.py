@@ -7,8 +7,8 @@ Examples:
 
 The default as-of date is each root's latest archived date. This exercises the
 historical path even when the archive is stale relative to the wall clock.
-Cached Streamlit functions are cleared before each root; downloaded Parquet
-files remain on disk, so repeat runs show a warm file-cache comparison.
+Historical SQLite observations and downloaded Parquet files remain on disk, so
+repeat runs show the persistent-cache benefit.
 """
 
 from __future__ import annotations
@@ -38,12 +38,9 @@ from options_monitor.tabs.vol import vol_regime  # noqa: E402
 
 def _clear_dashboard_caches() -> None:
     for fn in (
-        vol_regime._compute_vol_regime_data,
         vol_regime._pick_expiry_from_parquet,
         vol_regime._load_eod_snapshot_for_expiry,
         vol_regime._load_daily_snapshots_for_expiry,
-        vol_regime.find_latest_snapshots,
-        vol_regime.load_options_snapshot,
     ):
         fn.clear()
 
@@ -56,6 +53,7 @@ def main() -> int:
     parser.add_argument("--as-of", default="latest", help="latest, today, or YYYY-MM-DD")
     parser.add_argument("--endpoint", help="Override MINIO_ENDPOINT (use localhost from the host)")
     parser.add_argument("--cache-dir", help="Override TRACTATUS_CACHE_DIR for cold-cache runs")
+    parser.add_argument("--observations-db", help="Override the persistent Vol Regime SQLite path")
     args = parser.parse_args()
     if args.lookback_days < 1 or args.target_dte < 0:
         parser.error("lookback-days must be positive and target-dte must be nonnegative")
@@ -64,6 +62,8 @@ def main() -> int:
         os.environ["MINIO_ENDPOINT"] = args.endpoint
     if args.cache_dir:
         os.environ["TRACTATUS_CACHE_DIR"] = args.cache_dir
+    if args.observations_db:
+        os.environ["VOL_REGIME_CACHE_PATH"] = args.observations_db
     reader_started = time.perf_counter()
     reader = get_reader()
     print(f"Reader initialization: {time.perf_counter() - reader_started:.2f}s")
@@ -94,12 +94,11 @@ def main() -> int:
                 for obj, attr, label in (
                     (reader, "list_sample_dates", "manifest date listing"),
                     (reader, "get_parquet", "resolve/download parquet"),
-                    (reader, "ensure_parquet_range", "cache historical range"),
-                    (vol_regime, "find_latest_snapshots", "find live snapshots"),
-                    (vol_regime, "load_options_snapshot", "load live snapshot"),
+                    (reader, "latest_snapshots", "find live snapshots"),
+                    (reader, "load_intraday_snapshot", "load live snapshot"),
                     (vol_regime, "_pick_expiry_from_parquet", "pick historical expiry"),
                     (vol_regime, "_load_eod_snapshot_for_expiry", "load current EOD chain"),
-                    (vol_regime, "_load_daily_snapshots_for_expiry", "load daily chains"),
+                    (vol_regime, "_historical_observations", "compute historical observations"),
                     (vol_regime, "compute_atm_iv", "compute ATM IV"),
                     (vol_regime, "compute_risk_reversal", "compute risk reversal"),
                 ):
