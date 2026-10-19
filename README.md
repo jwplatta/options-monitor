@@ -57,6 +57,13 @@ Rows do not expire by age; a changed source file or calculation version causes
 recomputation. The chart checks the latest published intraday chain on each
 30-second refresh.
 
+The Volatility Skew chart uses the same lookback choices as Vol Regime. It plots
+the latest 30-DTE OTM put/call IV curve against the historical daily closing
+skews nearest 30 DTE. Historical strikes are aligned by distance from each
+day's spot, then shown on the current strike scale. The historical 10th–90th
+percentile band and median use curves stored in
+`$OPTIONS_MONITOR_CACHE_DIR/vol_skew.sqlite3`; source changes invalidate a day.
+
 Or manually:
 
 ```bash
