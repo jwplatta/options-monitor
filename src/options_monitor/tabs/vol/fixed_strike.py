@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -11,10 +12,17 @@ import streamlit as st
 from tractatus.calc.fixed_strike_vol import build_iv_matrix
 from tractatus.calc.iv_zscore import build_bucket_stats, compute_zscore_matrix
 
+from options_monitor.data.fixed_strike_cache import FixedStrikeBucketStore
 from options_monitor.data.intraday_options import find_latest_snapshots
 from options_monitor.data.options import load_historical_sample_window, load_options_snapshot
+from options_monitor.data.reader import get_reader
 
 _CHICAGO = ZoneInfo("America/Chicago")
+
+
+def _format_strike(strike: float) -> str:
+    """Keep fractional strikes distinct while avoiding trailing .0 for whole strikes."""
+    return f"{strike:g}"
 
 
 @st.cache_data(ttl=300, max_entries=5)
@@ -45,6 +53,40 @@ def _load_historical_frames(
         sample_datetimes.append(pd.Timestamp(str(sampled_at)).to_pydatetime())
 
     return frames, sample_datetimes
+
+
+@st.cache_data(ttl=300, max_entries=10)
+def _load_bucket_stats(symbol: str, lookback_days: int, interval_minutes: int) -> pd.DataFrame:
+    """Reuse source-validated historical bucket statistics when available."""
+    today = date.today()
+    lookback_start = today - timedelta(days=lookback_days)
+    source_paths = [
+        Path(path) for path in get_reader().ensure_parquet_files(symbol, lookback_start, today)
+    ]
+    if not source_paths:
+        empty = pd.DataFrame(columns=["iv_mean", "iv_std", "count"])
+        empty.attrs["sample_days"] = 0
+        return empty
+
+    with FixedStrikeBucketStore() as store:
+        cached = store.get(symbol, lookback_days, interval_minutes, source_paths)
+        if cached is not None:
+            stats, sample_days = cached
+            stats.attrs["sample_days"] = sample_days
+            return stats
+
+        frames, sample_datetimes = _load_historical_frames(symbol, lookback_days, interval_minutes)
+        stats = pd.DataFrame(build_bucket_stats(frames, sample_datetimes))
+        stats.attrs["sample_days"] = len({sample_dt.date() for sample_dt in sample_datetimes})
+        store.put(
+            symbol,
+            lookback_days,
+            interval_minutes,
+            source_paths,
+            stats,
+            int(stats.attrs["sample_days"]),
+        )
+        return stats
 
 
 def render_fixed_strike_tab() -> None:
@@ -105,9 +147,8 @@ def render_fixed_strike_tab() -> None:
 
     zscore_matrix: pd.DataFrame | None = None
     with st.spinner("Loading historical data for z-scores…"):
-        hist_frames, hist_datetimes = _load_historical_frames(symbol, fsv_lookback, fsv_interval)
-    if hist_frames:
-        bucket_stats = build_bucket_stats(hist_frames, hist_datetimes)
+        bucket_stats = _load_bucket_stats(symbol, fsv_lookback, fsv_interval)
+    if not bucket_stats.empty:
         zscore_matrix = compute_zscore_matrix(
             loaded,
             bucket_stats,
@@ -120,7 +161,7 @@ def render_fixed_strike_tab() -> None:
         spot=spot,
         otm_pct=fsv_otm_pct,
         zscore_matrix=zscore_matrix,
-        zscore_sample_days=len(set(dt.date() for dt in hist_datetimes)),
+        zscore_sample_days=int(bucket_stats.attrs.get("sample_days", 0)),
     )
 
 
@@ -160,17 +201,17 @@ def _render_fsv_table(
         formatted[col] = formatted[col].apply(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
     str_index = [str(d) for d in iv_filtered.index]
-    str_cols = [f"{int(c)}" for c in iv_filtered.columns]
+    str_cols = [_format_strike(float(c)) for c in iv_filtered.columns]
     formatted.index = str_index
     formatted.index.name = "Expiry \\ Strike"
     formatted.columns = str_cols
 
-    nearest_col_name = f"{int(nearest_strike)}"
+    nearest_col_name = _format_strike(float(nearest_strike))
 
     if z_aligned is not None:
         z_display = z_aligned.copy()
         z_display.index = str_index[: len(z_display)]
-        z_display.columns = [f"{int(c)}" for c in z_aligned.columns]
+        z_display.columns = [_format_strike(float(c)) for c in z_aligned.columns]
     else:
         z_display = None
 

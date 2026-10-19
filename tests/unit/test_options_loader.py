@@ -62,9 +62,11 @@ def test_historical_window_caches_range_before_query(tmp_path: Path) -> None:
     path = tmp_path / "2026" / "04" / "15"
     path.mkdir(parents=True)
     (path / "SPXW_samples_2026-04-15.parquet").touch()
-    reader.ensure_parquet_range.return_value = str(tmp_path / "**" / "*.parquet")
+    reader.ensure_parquet_files.return_value = [
+        str(tmp_path / "2026" / "04" / "15" / "SPXW.parquet")
+    ]
     reader.options_query.load_sample_window.return_value = pd.DataFrame({"strike": [5000]})
     result = load_historical_sample_window("SPXW", date(2026, 4, 1), 30, _reader=reader)
-    reader.ensure_parquet_range.assert_called_once_with("SPXW", date(2026, 4, 1), date.today())
+    reader.ensure_parquet_files.assert_called_once_with("SPXW", date(2026, 4, 1), date.today())
     reader.options_query.load_sample_window.assert_called_once()
     assert len(result) == 1

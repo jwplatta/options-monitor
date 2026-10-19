@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from glob import glob
 from pathlib import Path
 from typing import cast
 
@@ -120,12 +119,13 @@ def load_historical_sample_window(
     _reader: DataReader | None = None,
 ) -> pd.DataFrame:
     reader = _reader or get_reader()
-    parquet_glob = reader.ensure_parquet_range(symbol, sample_start, date.today())
-    if not glob(parquet_glob, recursive=True):
+    end_date = date.today()
+    source_paths = reader.ensure_parquet_files(symbol, sample_start, end_date)
+    if not source_paths:
         return pd.DataFrame()
     return cast(
         pd.DataFrame,
-        reader.options_query.load_sample_window(parquet_glob, sample_start, interval_minutes),
+        reader.options_query.load_sample_window(source_paths, sample_start, interval_minutes),
     )
 
 

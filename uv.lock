@@ -2845,7 +2845,7 @@ wheels = [
 [[package]]
 name = "tractatus"
 version = "0.1.0"
-source = { git = "https://github.com/jwplatta/tractatus.git?rev=main#04edae055dc168d281eb3b86ad225aef380da3b6" }
+source = { git = "https://github.com/jwplatta/tractatus.git?rev=main#b47080428bb71cc55c602041b032d53d2ce8fcdb" }
 dependencies = [
     { name = "boto3" },
     { name = "duckdb" },
