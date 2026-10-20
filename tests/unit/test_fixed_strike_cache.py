@@ -7,7 +7,8 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from options_monitor.data.fixed_strike_cache import FixedStrikeBucketStore, cache_path
+from options_monitor.data.fixed_strike_cache import FixedStrikeBucketStore
+from options_monitor.data.sqlite_cache import cache_path
 from options_monitor.tabs.vol import fixed_strike
 
 
@@ -47,7 +48,7 @@ def test_cache_path_uses_monitor_cache_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
-    assert cache_path() == tmp_path / "monitor" / "fixed_strike.sqlite3"
+    assert cache_path() == tmp_path / "monitor" / "options_monitor_cache.sqlite3"
 
 
 def test_bucket_stats_hit_skips_historical_load(

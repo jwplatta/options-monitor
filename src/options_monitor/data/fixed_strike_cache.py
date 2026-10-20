@@ -3,20 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
-import sqlite3
 from pathlib import Path
 
 import pandas as pd
 
+from options_monitor.data.sqlite_cache import connect_cache
+
 _CALC_VERSION = 1
-
-
-def cache_path() -> Path:
-    root = Path(
-        os.environ.get("OPTIONS_MONITOR_CACHE_DIR") or "~/.cache/options-monitor"
-    ).expanduser()
-    return root / "fixed_strike.sqlite3"
 
 
 def _source_stamps(paths: list[Path]) -> list[tuple[str, int, int]] | None:
@@ -54,30 +47,7 @@ class FixedStrikeBucketStore:
     """Cache one bucket-stat result for a parameter set and exact Parquet sources."""
 
     def __init__(self, path: Path | None = None) -> None:
-        db_path = path or cache_path()
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path, timeout=30)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=30000")
-        self._conn.execute(
-            """CREATE TABLE IF NOT EXISTS bucket_stats (
-                symbol TEXT NOT NULL,
-                lookback_days INTEGER NOT NULL,
-                interval_minutes INTEGER NOT NULL,
-                calc_version INTEGER NOT NULL,
-                source_stamps_json TEXT NOT NULL,
-                stats_json TEXT NOT NULL,
-                sample_days INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY (symbol, lookback_days, interval_minutes)
-            )"""
-        )
-        columns = {
-            row[1] for row in self._conn.execute("PRAGMA table_info(bucket_stats)").fetchall()
-        }
-        if "sample_days" not in columns:
-            self._conn.execute(
-                "ALTER TABLE bucket_stats ADD COLUMN sample_days INTEGER NOT NULL DEFAULT 0"
-            )
+        self._conn = connect_cache(path)
 
     def __enter__(self) -> FixedStrikeBucketStore:
         return self

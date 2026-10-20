@@ -3,19 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
-import sqlite3
 from datetime import date
 from pathlib import Path
 
+from options_monitor.data.sqlite_cache import connect_cache
+
 _CALC_VERSION = 1
-
-
-def skew_cache_path() -> Path:
-    root = Path(
-        os.environ.get("OPTIONS_MONITOR_CACHE_DIR") or "~/.cache/options-monitor"
-    ).expanduser()
-    return root / "vol_skew.sqlite3"
 
 
 def _stamp(path: Path) -> tuple[int, int] | None:
@@ -30,24 +23,7 @@ class SkewCurveStore:
     """One row per archived symbol/date/target DTE; rows never age out."""
 
     def __init__(self, path: Path | None = None) -> None:
-        db_path = path or skew_cache_path()
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path, timeout=30)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=30000")
-        self._conn.execute(
-            """CREATE TABLE IF NOT EXISTS skew_curves (
-                symbol TEXT NOT NULL,
-                sample_date TEXT NOT NULL,
-                target_dte INTEGER NOT NULL,
-                source_path TEXT NOT NULL,
-                source_size INTEGER NOT NULL,
-                source_mtime_ns INTEGER NOT NULL,
-                calc_version INTEGER NOT NULL,
-                points_json TEXT NOT NULL,
-                PRIMARY KEY (symbol, sample_date, target_dte)
-            )"""
-        )
+        self._conn = connect_cache(path)
 
     def __enter__(self) -> SkewCurveStore:
         return self

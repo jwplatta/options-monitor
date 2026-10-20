@@ -11,9 +11,13 @@ from options_monitor.tabs.vol import fixed_strike
 
 def test_oi_historical_range(monkeypatch) -> None:
     loader = MagicMock(return_value=pd.DataFrame())
-    monkeypatch.setattr(oi, "load_historical_sample_window", loader)
-    assert oi._load_oi_historical_frames("SPXW", 30, 60) == ([], [])
-    loader.assert_called_once_with("SPXW", date.today() - timedelta(days=30), 60)
+    monkeypatch.setattr(oi, "load_first_historical_sample_per_date", loader)
+    assert oi._load_oi_historical_frames("SPXW", 30) == ([], [])
+    loader.assert_called_once_with(
+        "SPXW",
+        date.today() - timedelta(days=30),
+        columns=oi._OI_HISTORICAL_COLUMNS,
+    )
 
 
 def test_fixed_strike_historical_range(monkeypatch) -> None:

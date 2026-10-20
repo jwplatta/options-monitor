@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
+import duckdb
 import pandas as pd
 import streamlit as st
 from tractatus.reader import DataReader
@@ -116,6 +117,7 @@ def load_historical_sample_window(
     symbol: str,
     sample_start: date,
     interval_minutes: int,
+    columns: list[str] | None = None,
     _reader: DataReader | None = None,
 ) -> pd.DataFrame:
     reader = _reader or get_reader()
@@ -125,8 +127,33 @@ def load_historical_sample_window(
         return pd.DataFrame()
     return cast(
         pd.DataFrame,
-        reader.options_query.load_sample_window(source_paths, sample_start, interval_minutes),
+        reader.options_query.load_sample_window(
+            source_paths, sample_start, interval_minutes, columns=columns
+        ),
     )
+
+
+@st.cache_data(ttl=300, max_entries=5)
+def load_first_historical_sample_per_date(
+    symbol: str,
+    sample_start: date,
+    columns: list[str],
+    _reader: DataReader | None = None,
+) -> pd.DataFrame:
+    """Load the earliest snapshot from each available sample date."""
+    reader = _reader or get_reader()
+    paths = reader.ensure_parquet_files(symbol, sample_start, date.today())
+    if not paths:
+        return pd.DataFrame()
+    selected = ", ".join('"' + column.replace('"', '""') + '"' for column in columns)
+    query = f"""
+        SELECT {selected}
+        FROM read_parquet(?, filename=true)
+        QUALIFY sampled_at = MIN(sampled_at) OVER (PARTITION BY filename)
+        ORDER BY filename, sampled_at
+    """
+    with duckdb.connect() as conn:
+        return cast(pd.DataFrame, conn.execute(query, [paths]).df())
 
 
 @st.cache_data(ttl=300)

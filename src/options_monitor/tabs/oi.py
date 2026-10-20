@@ -12,27 +12,37 @@ from tractatus.calc.oi import build_oi_matrix
 from tractatus.calc.oi_zscore import build_oi_bucket_stats, compute_oi_zscore_matrix
 
 from options_monitor.data.intraday_options import find_latest_snapshots
-from options_monitor.data.options import load_historical_sample_window, load_options_snapshot
+from options_monitor.data.options import (
+    load_first_historical_sample_per_date,
+    load_options_snapshot,
+)
 
 _CHICAGO = ZoneInfo("America/Chicago")
+_OI_HISTORICAL_COLUMNS = [
+    "sampled_at",
+    "expiration_date",
+    "strike",
+    "contract_type",
+    "open_interest",
+    "underlying_price",
+]
 
 
 @st.cache_data(ttl=300, max_entries=5)
 def _load_oi_historical_frames(
     symbol: str,
     lookback_days: int,
-    interval_minutes: int,
 ) -> tuple[list[pd.DataFrame], list[datetime]]:
-    """Load interval-downsampled historical chain snapshots for z-score bucket building.
+    """Load the first chain from each sample date for OI z-score bucket building.
 
-    Queries DuckDB across all parquet files for the lookback window. Returns
-    (frames, sample_datetimes) where each frame is one sampled_at slice and
-    sample_datetimes are the corresponding UTC datetimes.
+    Returns one frame per day, with the corresponding UTC sample timestamp.
     """
     today = date.today()
     lookback_start = today - timedelta(days=lookback_days)
 
-    df = load_historical_sample_window(symbol, lookback_start, interval_minutes)
+    df = load_first_historical_sample_per_date(
+        symbol, lookback_start, columns=_OI_HISTORICAL_COLUMNS
+    )
     if df.empty:
         return [], []
 
@@ -67,7 +77,6 @@ def render_oi_tab() -> None:
         oi_lookback = int(
             st.selectbox("Lookback (days)", [10, 20, 30, 60, 90], index=2, key="oi_lookback")
         )
-        oi_interval = int(st.selectbox("Interval (min)", [30, 60], index=1, key="oi_interval"))
     with c5:
         oi_include_0dte = st.toggle("Include 0DTE", value=True, key="oi_include_0dte")
 
@@ -105,7 +114,7 @@ def render_oi_tab() -> None:
 
     zscore_matrix: pd.DataFrame | None = None
     with st.spinner("Loading historical data for z-scores…"):
-        hist_frames, hist_datetimes = _load_oi_historical_frames(symbol, oi_lookback, oi_interval)
+        hist_frames, hist_datetimes = _load_oi_historical_frames(symbol, oi_lookback)
     if hist_frames:
         bucket_stats = build_oi_bucket_stats(hist_frames, hist_datetimes)
         zscore_matrix = compute_oi_zscore_matrix(

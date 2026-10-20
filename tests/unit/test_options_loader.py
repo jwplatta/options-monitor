@@ -4,11 +4,13 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import duckdb
 import pandas as pd
 
 from options_monitor.data.options import (
     list_expirations_for_window_on_date,
     list_snapshot_dates_for_expiry,
+    load_first_historical_sample_per_date,
     load_historical_sample_window,
     load_latest_archived_window,
     load_options_snapshot,
@@ -66,7 +68,37 @@ def test_historical_window_caches_range_before_query(tmp_path: Path) -> None:
         str(tmp_path / "2026" / "04" / "15" / "SPXW.parquet")
     ]
     reader.options_query.load_sample_window.return_value = pd.DataFrame({"strike": [5000]})
-    result = load_historical_sample_window("SPXW", date(2026, 4, 1), 30, _reader=reader)
+    columns = ["sampled_at", "strike"]
+    result = load_historical_sample_window(
+        "SPXW", date(2026, 4, 1), 30, columns=columns, _reader=reader
+    )
     reader.ensure_parquet_files.assert_called_once_with("SPXW", date(2026, 4, 1), date.today())
-    reader.options_query.load_sample_window.assert_called_once()
+    reader.options_query.load_sample_window.assert_called_once_with(
+        reader.ensure_parquet_files.return_value, date(2026, 4, 1), 30, columns=columns
+    )
     assert len(result) == 1
+
+
+def test_first_historical_sample_per_date_selects_earliest_chain(tmp_path: Path) -> None:
+    reader = MagicMock()
+    prior_date, sample_date = date(2026, 3, 31), date(2026, 4, 1)
+    parquet_path = tmp_path / f"{sample_date}.parquet"
+    with duckdb.connect() as conn:
+        conn.execute(
+            "COPY (SELECT * FROM (VALUES "
+            "(TIMESTAMPTZ '2026-04-01 14:00:00+00', 10), "
+            "(TIMESTAMPTZ '2026-04-01 13:30:00+00', 20)"
+            ") AS t(sampled_at, open_interest)) TO ? (FORMAT PARQUET)",
+            [str(parquet_path)],
+        )
+    reader.ensure_parquet_files.return_value = [str(parquet_path)]
+    columns = ["sampled_at", "open_interest"]
+    result = load_first_historical_sample_per_date(
+        "SPXW", prior_date, columns=columns, _reader=reader
+    )
+
+    assert len(result) == 1
+    assert result["sampled_at"].iloc[0] == pd.Timestamp("2026-04-01 13:30:00+00:00")
+    assert result["open_interest"].iloc[0] == 20
+    assert list(result.columns) == columns
+    reader.ensure_parquet_files.assert_called_once_with("SPXW", prior_date, date.today())

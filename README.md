@@ -31,7 +31,7 @@ cp .env.example .env
 | `MINIO_ACCESS_KEY` | — | MinIO access key |
 | `MINIO_SECRET_KEY` | — | MinIO secret key |
 | `TRACTATUS_CACHE_DIR` | `~/.tractatus/cache` | Local Parquet cache |
-| `OPTIONS_MONITOR_CACHE_DIR` | `~/.cache/options-monitor` | Persistent Vol Regime SQLite observations; mounted separately from Tractatus in Docker |
+| `OPTIONS_MONITOR_CACHE_DIR` | `~/.cache/options-monitor` | Shared SQLite cache database; mounted separately from Tractatus in Docker |
 | `PORT` | `8501` | Docker host port |
 
 ## Quick Start
@@ -49,20 +49,21 @@ make dev-shared
 
 `make dev-shared` runs an isolated development container at <http://localhost:8502> and connects to the existing MinIO endpoint (default `http://host.docker.internal:9000`). It does not start, stop, or modify MinIO. Stop only this development container with `make dev-shared-stop`.
 
-Vol Regime stores historical ATM IV and risk-reversal observations in
-`$OPTIONS_MONITOR_CACHE_DIR/vol_regime.sqlite3`. SQLite is embedded in the app;
-there is no separate database container. The first chart load fills missing
-observations from historical Parquet. Later loads reuse them across app restarts.
-Rows do not expire by age; a changed source file or calculation version causes
-recomputation. The chart checks the latest published intraday chain on each
+Fixed Strike, Vol Regime, and Volatility Skew share the embedded SQLite database
+`$OPTIONS_MONITOR_CACHE_DIR/options_monitor_cache.sqlite3`; there is no separate
+database container. The database and all cache tables are created on first use.
+Table schema versions and migrations are managed centrally in the app. Historical
+cache rows are source-validated and reused across app restarts; they do not expire
+by age. A changed source file or calculation version triggers recomputation where
+applicable. Vol Regime still checks the latest published intraday chain on each
 30-second refresh.
 
 The Volatility Skew chart uses the same lookback choices as Vol Regime. It plots
 the latest 30-DTE OTM put/call IV curve against the historical daily closing
 skews nearest 30 DTE. Historical strikes are aligned by distance from each
 day's spot, then shown on the current strike scale. The historical 10th–90th
-percentile band and median use curves stored in
-`$OPTIONS_MONITOR_CACHE_DIR/vol_skew.sqlite3`; source changes invalidate a day.
+percentile band and median use curves stored in the shared SQLite cache; source
+changes invalidate a day.
 
 Or manually:
 
