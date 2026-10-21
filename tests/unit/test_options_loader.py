@@ -10,9 +10,9 @@ import pandas as pd
 from options_monitor.data.options import (
     list_expirations_for_window_on_date,
     list_snapshot_dates_for_expiry,
-    load_first_historical_sample_per_date,
     load_historical_sample_window,
     load_latest_archived_window,
+    load_latest_historical_sample_per_date,
     load_options_snapshot,
     parquet_path_for_date,
 )
@@ -79,7 +79,9 @@ def test_historical_window_caches_range_before_query(tmp_path: Path) -> None:
     assert len(result) == 1
 
 
-def test_first_historical_sample_per_date_selects_earliest_chain(tmp_path: Path) -> None:
+def test_latest_historical_sample_per_date_selects_latest_chain_per_expiry(
+    tmp_path: Path,
+) -> None:
     reader = MagicMock()
     prior_date, sample_date = date(2026, 3, 31), date(2026, 4, 1)
     parquet_path = tmp_path / f"{sample_date}.parquet"
@@ -95,16 +97,16 @@ def test_first_historical_sample_per_date_selects_earliest_chain(tmp_path: Path)
         )
     reader.ensure_parquet_files.return_value = [str(parquet_path)]
     columns = ["sampled_at", "expiration_date", "open_interest"]
-    result = load_first_historical_sample_per_date(
+    result = load_latest_historical_sample_per_date(
         "SPXW", prior_date, columns=columns, _reader=reader
     )
 
     assert len(result) == 2
     assert result["sampled_at"].tolist() == [
-        pd.Timestamp("2026-04-01 13:30:00+00:00"),
-        pd.Timestamp("2026-04-01 13:45:00+00:00"),
+        pd.Timestamp("2026-04-01 14:00:00+00:00"),
+        pd.Timestamp("2026-04-01 14:15:00+00:00"),
     ]
-    assert result["open_interest"].tolist() == [20, 30]
+    assert result["open_interest"].tolist() == [10, 40]
     assert pd.to_datetime(result["sample_date"]).dt.date.tolist() == [sample_date, sample_date]
     assert list(result.columns) == [*columns, "sample_date"]
     reader.ensure_parquet_files.assert_called_once_with("SPXW", prior_date, date.today())

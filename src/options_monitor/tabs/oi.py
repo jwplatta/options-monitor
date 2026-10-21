@@ -15,9 +15,9 @@ from options_monitor.calc.oi_changes import (
     build_historical_oi_change_frames,
     compute_current_oi_changes,
 )
-from options_monitor.data.intraday_options import find_latest_snapshots
+from options_monitor.data.intraday_options import find_first_snapshots
 from options_monitor.data.options import (
-    load_first_historical_sample_per_date,
+    load_latest_historical_sample_per_date,
     load_options_snapshot,
 )
 
@@ -37,14 +37,14 @@ def _load_oi_historical_frames(
     symbol: str,
     lookback_days: int,
 ) -> tuple[list[pd.DataFrame], list[datetime]]:
-    """Load the first snapshot per expiry per date for OI change calculations.
+    """Load the last archived snapshot per expiry per date for OI changes.
 
     Returns one full chain frame per date and a timezone-aware date marker.
     """
     today = datetime.now(_CHICAGO).date()
     lookback_start = today - timedelta(days=lookback_days)
 
-    df = load_first_historical_sample_per_date(
+    df = load_latest_historical_sample_per_date(
         symbol, lookback_start, columns=_OI_HISTORICAL_COLUMNS
     )
     if df.empty:
@@ -87,22 +87,23 @@ def render_oi_tab() -> None:
 
     now = datetime.now(_CHICAGO)
     current_sample_date = now.date()
-    snapshot_paths = find_latest_snapshots(
+    snapshot_entries = find_first_snapshots(
         symbol,
         start_date=current_sample_date,
         days_out=oi_days_out,
         include_0dte=oi_include_0dte,
     )
 
-    if not snapshot_paths:
+    if not snapshot_entries:
         st.warning(f"No {symbol} snapshots found.")
         return
 
     loaded: dict[date, pd.DataFrame] = {}
     spot: float = 0.0
-    for expiry, path in snapshot_paths.items():
+    for expiry, entry in snapshot_entries.items():
         try:
-            snap = load_options_snapshot(path)
+            snap = load_options_snapshot(str(entry["uri"]))
+            snap["sampled_at"] = pd.to_datetime(entry["sampled_at"], utc=True)
             loaded[expiry] = snap
             if spot == 0.0 and not snap["underlying_price"].empty:
                 spot = float(snap["underlying_price"].iloc[0])
