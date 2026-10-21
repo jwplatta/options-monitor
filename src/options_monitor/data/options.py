@@ -140,17 +140,19 @@ def load_first_historical_sample_per_date(
     columns: list[str],
     _reader: DataReader | None = None,
 ) -> pd.DataFrame:
-    """Load the earliest snapshot from each available sample date."""
+    """Load the earliest snapshot for each expiry on every available sample date."""
     reader = _reader or get_reader()
     paths = reader.ensure_parquet_files(symbol, sample_start, date.today())
     if not paths:
         return pd.DataFrame()
     selected = ", ".join('"' + column.replace('"', '""') + '"' for column in columns)
     query = f"""
-        SELECT {selected}
+        SELECT {selected},
+               CAST(regexp_extract(filename, '[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}') AS DATE)
+                   AS sample_date
         FROM read_parquet(?, filename=true)
-        QUALIFY sampled_at = MIN(sampled_at) OVER (PARTITION BY filename)
-        ORDER BY filename, sampled_at
+        QUALIFY sampled_at = MIN(sampled_at) OVER (PARTITION BY filename, expiration_date)
+        ORDER BY filename, expiration_date, sampled_at
     """
     with duckdb.connect() as conn:
         return cast(pd.DataFrame, conn.execute(query, [paths]).df())
