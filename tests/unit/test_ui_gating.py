@@ -12,6 +12,29 @@ from options_monitor.tabs import gex as gamma_map
 from options_monitor.tabs import history
 
 
+def test_symbol_change_reruns_full_dashboard_outside_widget_callback(monkeypatch) -> None:
+    state = {
+        "global_symbol": "SPY",
+        "_roots_ready_rerun": True,
+        "_last_dashboard_symbol": "SPXW",
+    }
+    rerun_scopes: list[str] = []
+    monkeypatch.setattr(app.st, "session_state", state)
+    monkeypatch.setattr(app, "available_roots", lambda: (["SPXW", "SPY"], True))
+    monkeypatch.setattr(
+        app.st,
+        "selectbox",
+        lambda label, roots, index, key: "SPY",
+    )
+    monkeypatch.setattr(app.st, "rerun", lambda scope: rerun_scopes.append(scope))
+
+    app._render_symbol_selector.__wrapped__()
+    app._render_symbol_selector.__wrapped__()
+
+    assert rerun_scopes == ["app"]
+    assert state["_last_dashboard_symbol"] == "SPY"
+
+
 def test_dashboard_router_only_invokes_selected_panel(monkeypatch) -> None:
     calls: list[str] = []
 
@@ -187,7 +210,16 @@ def test_render_history_tab_skips_single_expiry_for_aggregate_history(
 
 def test_gex_view_does_not_touch_history_snapshot_loader(monkeypatch, tmp_path: Path) -> None:
     sample_df = pd.DataFrame(
-        [{"underlying_price": 5000.0, "strike": 5000.0, "gamma": 0.01, "open_interest": 100.0}]
+        [
+            {
+                "underlying_price": 5000.0,
+                "strike": 5000.0,
+                "gamma": 0.01,
+                "volatility": 20.0,
+                "open_interest": 100.0,
+                "contract_type": "CALL",
+            }
+        ]
     )
     history_loader_called: list[str] = []
 
@@ -235,6 +267,79 @@ def test_gex_view_does_not_touch_history_snapshot_loader(monkeypatch, tmp_path: 
     assert history_loader_called == []
 
 
+def test_gex_filter_excludes_invalid_greeks_and_reports_partial_sample(monkeypatch) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(gamma_map.st, "warning", warnings.append)
+    rows = pd.DataFrame(
+        [
+            {
+                "strike": 5000,
+                "gamma": 0.01,
+                "volatility": 20,
+                "open_interest": 100,
+                "contract_type": "CALL",
+            },
+            {
+                "strike": 4990,
+                "gamma": -999,
+                "volatility": 20,
+                "open_interest": 100,
+                "contract_type": "PUT",
+            },
+            {
+                "strike": 5010,
+                "gamma": 0.01,
+                "volatility": -999,
+                "open_interest": 100,
+                "contract_type": "CALL",
+            },
+        ]
+    )
+
+    filtered = gamma_map._usable_gex_rows(rows, "SPXW")
+
+    assert filtered["strike"].tolist() == [5000]
+    assert len(warnings) == 1
+    assert "1 of 3" in warnings[0]
+    assert rows["gamma"].tolist() == [0.01, -999, 0.01]
+
+
+def test_gex_view_shows_empty_state_instead_of_plotting_invalid_sample(monkeypatch) -> None:
+    rows = pd.DataFrame(
+        [
+            {
+                "underlying_price": 7691.0,
+                "strike": 7700.0,
+                "gamma": -999.0,
+                "volatility": -999.0,
+                "open_interest": 100.0,
+                "contract_type": "CALL",
+            }
+        ]
+    )
+    warnings: list[str] = []
+    plotted: list[object] = []
+    monkeypatch.setattr(
+        gamma_map,
+        "_load_window_snapshot_data",
+        lambda **kwargs: (rows, 7691.0, 385, None, False),
+    )
+    monkeypatch.setattr(gamma_map.st, "radio", lambda *args, **kwargs: 5)
+    monkeypatch.setattr(gamma_map.st, "warning", warnings.append)
+    monkeypatch.setattr(gamma_map.st, "plotly_chart", lambda fig, **kwargs: plotted.append(fig))
+    monkeypatch.setattr(
+        gamma_map,
+        "net_gex_by_strike",
+        lambda *args, **kwargs: pytest.fail("GEX calculation received invalid contracts"),
+    )
+
+    gamma_map._render_gex_view("SPXW", date(2026, 10, 19), True, 5.0)
+
+    assert not plotted
+    assert len(warnings) == 1
+    assert "No valid SPXW GEX contracts" in warnings[0]
+
+
 def test_history_view_uses_selected_snapshot_and_reuses_single_expiry_chart(
     monkeypatch,
     tmp_path: Path,
@@ -242,7 +347,16 @@ def test_history_view_uses_selected_snapshot_and_reuses_single_expiry_chart(
     from datetime import datetime
 
     sample_df = pd.DataFrame(
-        [{"underlying_price": 5000.0, "strike": 5000.0, "gamma": 0.01, "open_interest": 100.0}]
+        [
+            {
+                "underlying_price": 5000.0,
+                "strike": 5000.0,
+                "gamma": 0.01,
+                "volatility": 20.0,
+                "open_interest": 100.0,
+                "contract_type": "CALL",
+            }
+        ]
     )
     parquet_path = tmp_path / "SPXW_samples_2026-04-15.parquet"
     parquet_path.touch()

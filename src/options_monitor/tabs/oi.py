@@ -11,38 +11,54 @@ import streamlit as st
 from tractatus.calc.oi import build_oi_matrix
 from tractatus.calc.oi_zscore import build_oi_bucket_stats, compute_oi_zscore_matrix
 
-from options_monitor.data.intraday_options import find_latest_snapshots
-from options_monitor.data.options import load_historical_sample_window, load_options_snapshot
+from options_monitor.calc.oi_changes import (
+    build_historical_oi_change_frames,
+    compute_current_oi_changes,
+)
+from options_monitor.data.intraday_options import find_first_snapshots
+from options_monitor.data.options import (
+    load_latest_historical_sample_per_date,
+    load_options_snapshot,
+)
 
 _CHICAGO = ZoneInfo("America/Chicago")
+_OI_HISTORICAL_COLUMNS = [
+    "sampled_at",
+    "expiration_date",
+    "strike",
+    "contract_type",
+    "open_interest",
+    "underlying_price",
+]
 
 
 @st.cache_data(ttl=300, max_entries=5)
 def _load_oi_historical_frames(
     symbol: str,
     lookback_days: int,
-    interval_minutes: int,
 ) -> tuple[list[pd.DataFrame], list[datetime]]:
-    """Load interval-downsampled historical chain snapshots for z-score bucket building.
+    """Load the last archived snapshot per expiry per date for OI changes.
 
-    Queries DuckDB across all parquet files for the lookback window. Returns
-    (frames, sample_datetimes) where each frame is one sampled_at slice and
-    sample_datetimes are the corresponding UTC datetimes.
+    Returns one full chain frame per date and a timezone-aware date marker.
     """
-    today = date.today()
+    today = datetime.now(_CHICAGO).date()
     lookback_start = today - timedelta(days=lookback_days)
 
-    df = load_historical_sample_window(symbol, lookback_start, interval_minutes)
+    df = load_latest_historical_sample_per_date(
+        symbol, lookback_start, columns=_OI_HISTORICAL_COLUMNS
+    )
     if df.empty:
         return [], []
 
     df["sampled_at"] = pd.to_datetime(df["sampled_at"], utc=True)
+    df["sample_date"] = pd.to_datetime(df["sample_date"]).dt.date
 
     frames: list[pd.DataFrame] = []
     sample_datetimes: list[datetime] = []
-    for sampled_at, group in df.groupby("sampled_at", sort=True):
+    for sample_date, group in df.groupby("sample_date", sort=True):
         frames.append(group.reset_index(drop=True))
-        sample_datetimes.append(pd.Timestamp(str(sampled_at)).to_pydatetime())
+        sample_day = date.fromisoformat(str(sample_date))
+        sample_datetimes.append(datetime.combine(sample_day, datetime.min.time(), tzinfo=_CHICAGO))
 
     return frames, sample_datetimes
 
@@ -67,26 +83,28 @@ def render_oi_tab() -> None:
         oi_lookback = int(
             st.selectbox("Lookback (days)", [10, 20, 30, 60, 90], index=2, key="oi_lookback")
         )
-        oi_interval = int(st.selectbox("Interval (min)", [30, 60], index=1, key="oi_interval"))
     with c5:
         oi_include_0dte = st.toggle("Include 0DTE", value=True, key="oi_include_0dte")
 
-    snapshot_paths = find_latest_snapshots(
+    now = datetime.now(_CHICAGO)
+    current_sample_date = now.date()
+    snapshot_entries = find_first_snapshots(
         symbol,
-        start_date=date.today(),
+        start_date=current_sample_date,
         days_out=oi_days_out,
         include_0dte=oi_include_0dte,
     )
 
-    if not snapshot_paths:
+    if not snapshot_entries:
         st.warning(f"No {symbol} snapshots found.")
         return
 
     loaded: dict[date, pd.DataFrame] = {}
     spot: float = 0.0
-    for expiry, path in snapshot_paths.items():
+    for expiry, entry in snapshot_entries.items():
         try:
-            snap = load_options_snapshot(path)
+            snap = load_options_snapshot(str(entry["uri"]))
+            snap["sampled_at"] = pd.to_datetime(entry["sampled_at"], utc=True)
             loaded[expiry] = snap
             if spot == 0.0 and not snap["underlying_price"].empty:
                 spot = float(snap["underlying_price"].iloc[0])
@@ -97,30 +115,47 @@ def render_oi_tab() -> None:
         if spot:
             st.metric("Spot (SPXW)", f"{spot:,.2f}")
 
-    oi_matrix = build_oi_matrix(loaded, contract_type=oi_contract_type, spot=spot)
+    with st.spinner("Calculating daily open-interest changes…"):
+        hist_frames, hist_datetimes = _load_oi_historical_frames(symbol, oi_lookback)
 
-    if oi_matrix.empty:
-        st.warning("No open interest data available for the selected parameters.")
+    previous_samples = [
+        (sampled_at, frame)
+        for sampled_at, frame in zip(hist_datetimes, hist_frames, strict=False)
+        if sampled_at.astimezone(_CHICAGO).date() < current_sample_date
+    ]
+    if not previous_samples:
+        st.warning("No previous daily option chain is available to calculate OI changes.")
         return
 
+    previous_sampled_at, previous_frame = previous_samples[-1]
+    previous_sample_date = previous_sampled_at.astimezone(_CHICAGO).date()
+    current_changes = compute_current_oi_changes(loaded, previous_frame)
+    oi_change_matrix = build_oi_matrix(current_changes, contract_type=oi_contract_type, spot=spot)
+    if oi_change_matrix.empty:
+        st.warning("No current contracts matched the previous daily chain.")
+        return
+
+    history_change_frames, history_change_datetimes = build_historical_oi_change_frames(
+        hist_frames, hist_datetimes, before_date=current_sample_date
+    )
     zscore_matrix: pd.DataFrame | None = None
-    with st.spinner("Loading historical data for z-scores…"):
-        hist_frames, hist_datetimes = _load_oi_historical_frames(symbol, oi_lookback, oi_interval)
-    if hist_frames:
-        bucket_stats = build_oi_bucket_stats(hist_frames, hist_datetimes)
+    if history_change_frames:
+        bucket_stats = build_oi_bucket_stats(history_change_frames, history_change_datetimes)
         zscore_matrix = compute_oi_zscore_matrix(
-            loaded,
+            current_changes,
             bucket_stats,
             spot=spot,
             contract_type=oi_contract_type,
-            now=datetime.now(_CHICAGO),
+            now=now,
         )
     _render_oi_table(
-        oi_matrix,
+        oi_change_matrix,
         spot=spot,
         otm_pct=oi_otm_pct,
         zscore_matrix=zscore_matrix,
-        zscore_sample_days=len(set(dt.date() for dt in hist_datetimes)),
+        zscore_sample_days=len({dt.astimezone(_CHICAGO).date() for dt in history_change_datetimes}),
+        current_sample_date=current_sample_date,
+        previous_sample_date=previous_sample_date,
     )
 
 
@@ -130,8 +165,10 @@ def _render_oi_table(
     otm_pct: float,
     zscore_matrix: pd.DataFrame | None = None,
     zscore_sample_days: int = 0,
+    current_sample_date: date | None = None,
+    previous_sample_date: date | None = None,
 ) -> None:
-    """Render the OI matrix as a scrollable styled dataframe."""
+    """Render daily OI changes as a scrollable styled dataframe."""
     strikes = np.array(oi_matrix.columns.tolist(), dtype=float)
 
     lo = spot * (1 - otm_pct / 100)
@@ -156,10 +193,14 @@ def _render_oi_table(
     nearest_strike = filtered_strikes[int(np.argmin(np.abs(filtered_strikes - spot)))]
 
     formatted = oi_filtered.copy()
+
+    def _format_change(value: float) -> str:
+        if pd.isna(value):
+            return ""
+        return f"+{int(value):,}" if value > 0 else f"{int(value):,}"
+
     for col in formatted.columns:
-        formatted[col] = formatted[col].apply(
-            lambda v: f"{int(v):,}" if pd.notna(v) and v > 0 else ""
-        )
+        formatted[col] = formatted[col].apply(_format_change)
 
     str_index = [str(d) for d in oi_filtered.index]
     str_cols = [f"{int(c)}" for c in oi_filtered.columns]
@@ -178,6 +219,12 @@ def _render_oi_table(
 
     if z_display is not None:
         _render_zscore_legend()
+        st.caption("Heatmap colors show the z-score of daily OI change versus similar contracts.")
+    if current_sample_date is not None and previous_sample_date is not None:
+        st.caption(
+            f"Daily OI change: {previous_sample_date} → {current_sample_date}. "
+            "Cells show the change in open-interest contracts."
+        )
 
     # TODO: extract to shared zscore style helper
     def _zscore_color(z: float) -> tuple[str, str]:
@@ -221,7 +268,7 @@ def _render_oi_table(
     table_height = 38 + n_rows * 28
     st.dataframe(styled, use_container_width=True, height=table_height)
     if zscore_sample_days:
-        st.caption(f"z-scores computed from n={zscore_sample_days} sample days")
+        st.caption(f"Change z-scores use n={zscore_sample_days} historical day-to-day changes.")
 
 
 def _render_zscore_legend() -> None:

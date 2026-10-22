@@ -119,9 +119,9 @@ def _add_quadrant_labels(fig: go.Figure) -> None:
             "Low IV percentile<br>High RR percentile ⓘ",
             "left",
             "top",
-            "Calls are relatively rich, but overall IV is low.<br>"
-            "Bearish: consider buying puts or put spreads.<br>"
-            "Bullish: a call spread limits what you pay for calls.",
+            "IV is low and calls are relatively rich while puts are relatively cheap.<br>"
+            "Bullish: Consider a call debit spread to offset the cost of rich calls.<br>"
+            "Bearish: Consider buying puts or a put debit spread.",
         ),
         (
             0.98,
@@ -129,9 +129,9 @@ def _add_quadrant_labels(fig: go.Figure) -> None:
             "High IV percentile<br>High RR percentile ⓘ",
             "right",
             "top",
-            "Overall IV is high and calls are relatively rich.<br>"
-            "Fading upside: consider selling a call spread.<br>"
-            "Bullish: a call spread limits the cost of rich calls.",
+            "IV is high and calls are relatively rich while puts are relatively cheap.<br>"
+            "Bullish: Consider a call debit spread to offset the cost of rich calls.<br>"
+            "Bearish: Consider selling a call credit spread.",
         ),
         (
             0.02,
@@ -139,9 +139,9 @@ def _add_quadrant_labels(fig: go.Figure) -> None:
             "Low IV percentile<br>Low RR percentile ⓘ",
             "left",
             "bottom",
-            "Overall IV is low and puts are relatively rich.<br>"
-            "Bullish: consider buying calls or call spreads.<br>"
-            "Willing to own lower: consider selling a put spread.",
+            "IV is low and puts are relatively rich while calls are relatively cheap.<br>"
+            "Bullish: Consider buying calls or a call debit spread.<br>"
+            "Bearish: Consider a put debit spread to offset the cost of rich puts.",
         ),
         (
             0.98,
@@ -149,9 +149,9 @@ def _add_quadrant_labels(fig: go.Figure) -> None:
             "High IV percentile<br>Low RR percentile ⓘ",
             "right",
             "bottom",
-            "Puts are expensive.<br>"
-            "Bullish: sell a put credit spread (bet price holds up).<br>"
-            "Bearish: buy a put debit spread; sell a farther OTM put to help pay for the long put.",
+            "IV is high and puts are relatively rich while calls are relatively cheap.<br>"
+            "Bullish: Consider selling a put credit spread.<br>"
+            "Bearish: Consider buying a put debit spread to offset the cost of rich puts.",
         ),
     ]
     for x, y, label, xanchor, yanchor, tip in labels:

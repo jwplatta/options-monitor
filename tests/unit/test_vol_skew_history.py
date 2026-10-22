@@ -10,7 +10,8 @@ import pytest
 
 from options_monitor.calc.vol_skew_history import historical_band, otm_skew_points
 from options_monitor.charts.vol_skew_history import build_vol_skew_history_chart
-from options_monitor.data.vol_skew_cache import SkewCurveStore, skew_cache_path
+from options_monitor.data.sqlite_cache import cache_path
+from options_monitor.data.vol_skew_cache import SkewCurveStore
 from options_monitor.tabs.vol import skew_history
 
 
@@ -38,11 +39,11 @@ def test_historical_band_does_not_extrapolate_wings() -> None:
     assert counts.tolist() == [0, 3, 3, 3, 0]
 
 
-def test_skew_cache_is_separate_and_persistent(
+def test_skew_cache_uses_shared_database_and_persists(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
-    assert skew_cache_path() == tmp_path / "monitor" / "vol_skew.sqlite3"
+    assert cache_path() == tmp_path / "monitor" / "options_monitor_cache.sqlite3"
     source = tmp_path / "SPY.parquet"
     source.write_bytes(b"first source")
     sample_date = date(2026, 10, 16)

@@ -4,6 +4,7 @@ from datetime import date, datetime
 from unittest.mock import MagicMock
 
 from options_monitor.data.intraday_options import (
+    find_first_snapshots,
     find_intraday_updated_at,
     find_latest_snapshots,
     find_series_snapshots,
@@ -25,6 +26,39 @@ def test_intraday_expiry_window_and_reader_calls() -> None:
     reader.latest_snapshots.assert_called_once_with("SPXW", date(2026, 4, 16), date(2026, 4, 17))
     assert find_series_snapshots("SPXW", start, 2, _reader=reader)
     reader.series_snapshots.assert_called_once_with("SPXW", start, date(2026, 4, 17))
+
+
+def test_find_first_snapshots_selects_earliest_entry_per_expiry() -> None:
+    reader = MagicMock()
+    first_expiry = date(2026, 4, 17)
+    second_expiry = date(2026, 4, 24)
+    reader.series_snapshots.return_value = [
+        {
+            "expiration_date": first_expiry.isoformat(),
+            "sampled_at": "2026-04-15T14:00:00Z",
+            "uri": "late-a",
+        },
+        {
+            "expiration_date": second_expiry.isoformat(),
+            "sampled_at": "2026-04-15T13:45:00Z",
+            "uri": "first-b",
+        },
+        {
+            "expiration_date": first_expiry.isoformat(),
+            "sampled_at": "2026-04-15T13:30:00Z",
+            "uri": "first-a",
+        },
+        {
+            "expiration_date": second_expiry.isoformat(),
+            "sampled_at": "2026-04-15T14:15:00Z",
+            "uri": "late-b",
+        },
+    ]
+
+    result = find_first_snapshots("SPXW", date(2026, 4, 15), 30, _reader=reader)
+
+    assert result[first_expiry]["uri"] == "first-a"
+    assert result[second_expiry]["uri"] == "first-b"
 
 
 def test_empty_expiry_window_skips_reader() -> None:

@@ -25,13 +25,16 @@ def _render_symbol_selector() -> None:
     if current not in roots:
         roots = [current, *roots]
     default_idx = roots.index(_DEFAULT_SYMBOL) if _DEFAULT_SYMBOL in roots else 0
-    st.selectbox(
+    selected = st.selectbox(
         "Symbol",
         roots,
         index=default_idx,
         key="global_symbol",
-        on_change=lambda: st.rerun(scope="app"),
     )
+    previous = st.session_state.get("_last_dashboard_symbol")
+    st.session_state["_last_dashboard_symbol"] = selected
+    if previous is not None and selected != previous:
+        st.rerun(scope="app")
     if not loaded:
         st.caption("Loading symbols…")
 

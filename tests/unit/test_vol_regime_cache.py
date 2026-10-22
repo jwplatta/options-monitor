@@ -8,7 +8,8 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from options_monitor.data.vol_regime_cache import VolRegimeObservationStore, cache_path
+from options_monitor.data.sqlite_cache import cache_path
+from options_monitor.data.vol_regime_cache import VolRegimeObservationStore
 from options_monitor.tabs.vol import vol_regime
 
 
@@ -40,8 +41,7 @@ def test_cache_path_is_separate_from_tractatus(
 ) -> None:
     monkeypatch.setenv("TRACTATUS_CACHE_DIR", str(tmp_path / "tractatus"))
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "options-monitor"))
-    monkeypatch.delenv("VOL_REGIME_CACHE_PATH", raising=False)
-    assert cache_path() == tmp_path / "options-monitor" / "vol_regime.sqlite3"
+    assert cache_path() == tmp_path / "options-monitor" / "options_monitor_cache.sqlite3"
 
 
 def test_historical_series_reuses_persisted_observations(
@@ -49,7 +49,7 @@ def test_historical_series_reuses_persisted_observations(
 ) -> None:
     source = tmp_path / "GLD.parquet"
     source.write_bytes(b"immutable source")
-    monkeypatch.setenv("VOL_REGIME_CACHE_PATH", str(tmp_path / "cache.sqlite3"))
+    monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path))
     reader = MagicMock()
     reader.get_parquet.return_value = source
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
