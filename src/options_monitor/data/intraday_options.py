@@ -14,7 +14,7 @@ from options_monitor.data.reader import get_reader
 _CHICAGO = ZoneInfo("America/Chicago")
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def list_expirations(symbol: str, _reader: DataReader | None = None) -> list[date]:
     return cast(list[date], (_reader or get_reader()).list_intraday_expirations(symbol))
 

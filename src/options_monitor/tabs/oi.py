@@ -57,7 +57,8 @@ def _load_oi_historical_frames(
     sample_datetimes: list[datetime] = []
     for sample_date, group in df.groupby("sample_date", sort=True):
         frames.append(group.reset_index(drop=True))
-        sample_datetimes.append(datetime.combine(sample_date, datetime.min.time(), tzinfo=_CHICAGO))
+        sample_day = date.fromisoformat(str(sample_date))
+        sample_datetimes.append(datetime.combine(sample_day, datetime.min.time(), tzinfo=_CHICAGO))
 
     return frames, sample_datetimes
 

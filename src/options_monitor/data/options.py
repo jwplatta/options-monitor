@@ -31,12 +31,12 @@ def load_options_snapshot(
     return df
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def list_snapshot_dates(symbol: str, _reader: DataReader | None = None) -> list[date]:
     return cast(list[date], (_reader or get_reader()).list_sample_dates(symbol))
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def list_snapshot_dates_for_expiry(
     symbol: str, expiry: date, _reader: DataReader | None = None
 ) -> list[date]:
@@ -49,7 +49,7 @@ def list_snapshot_dates_for_expiry(
     return found
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def list_expirations_for_window_on_date(
     symbol: str,
     sample_date: date,
@@ -68,14 +68,14 @@ def list_expirations_for_window_on_date(
     return [e for e in reader.options_query.list_expirations(path, start) if e <= end]
 
 
-@st.cache_data(ttl=300, max_entries=20)
+@st.cache_data(ttl=60, max_entries=20)
 def parquet_path_for_date(
     symbol: str, sample_date: date, _reader: DataReader | None = None
 ) -> Path | None:
     return cast(Path | None, (_reader or get_reader()).get_parquet(symbol, sample_date))
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def find_historical_snapshot_times(
     expiry: date, parquet_path: Path, _reader: DataReader | None = None
 ) -> list[datetime]:
@@ -85,7 +85,7 @@ def find_historical_snapshot_times(
     )
 
 
-@st.cache_data(ttl=300, max_entries=10)
+@st.cache_data(ttl=60, max_entries=10)
 def load_historical_snapshot(
     symbol: str,
     expiry: date,
@@ -155,10 +155,10 @@ def load_latest_historical_sample_per_date(
         ORDER BY filename, expiration_date, sampled_at
     """
     with duckdb.connect() as conn:
-        return cast(pd.DataFrame, conn.execute(query, [paths]).df())
+        return conn.execute(query, [paths]).df()
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def load_latest_archived_window(
     symbol: str,
     start_date: date,
@@ -186,7 +186,7 @@ def load_latest_archived_window(
     return (max(ts for _, ts in latest), frames) if frames else None
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def list_expirations_from_archive(symbol: str, _reader: DataReader | None = None) -> list[date]:
     reader = _reader or get_reader()
     dates = reader.list_sample_dates(symbol)
@@ -195,7 +195,7 @@ def list_expirations_from_archive(symbol: str, _reader: DataReader | None = None
     return cast(list[date], reader.options_query.list_expirations(path, dates[-1]))
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def load_latest_archived_single_expiry(
     symbol: str, expiry: date, _reader: DataReader | None = None
 ) -> tuple[datetime, pd.DataFrame] | None:
