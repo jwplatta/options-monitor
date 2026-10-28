@@ -11,9 +11,11 @@ from options_monitor.data.sqlite_cache import connect_cache
 _CALC_VERSION = 1
 
 
-def _stamp(path: Path) -> tuple[int, int] | None:
+def _stamp(path: Path | str) -> tuple[int, int] | None:
+    if isinstance(path, str) and path.startswith("s3://"):
+        return (0, 0)
     try:
-        stat = path.stat()
+        stat = Path(path).stat()
     except OSError:
         return None
     return stat.st_size, stat.st_mtime_ns
@@ -39,7 +41,7 @@ class SkewCurveStore:
                FROM skew_curves WHERE symbol=? AND sample_date=? AND target_dte=?""",
             (symbol, sample_date.isoformat(), target_dte),
         ).fetchone()
-        if row is None or row[3] != _CALC_VERSION or _stamp(Path(row[0])) != (row[1], row[2]):
+        if row is None or row[3] != _CALC_VERSION or _stamp(row[0]) != (row[1], row[2]):
             return None
         return [(float(m), float(iv)) for m, iv in json.loads(row[4])]
 
@@ -48,7 +50,7 @@ class SkewCurveStore:
         symbol: str,
         sample_date: date,
         target_dte: int,
-        source_path: Path,
+        source_path: Path | str,
         points: list[tuple[float, float]],
     ) -> None:
         stamp = _stamp(source_path)

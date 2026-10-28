@@ -64,7 +64,7 @@ def test_historical_curves_reuse_sqlite(monkeypatch: pytest.MonkeyPatch, tmp_pat
     source.write_bytes(b"historical parquet")
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
     reader = MagicMock()
-    reader.get_parquet.return_value = source
+    reader.get_option_parquet.return_value = str(source)
     monkeypatch.setattr(skew_history, "get_reader", lambda: reader)
     frame = pd.DataFrame(
         {
@@ -82,8 +82,8 @@ def test_historical_curves_reuse_sqlite(monkeypatch: pytest.MonkeyPatch, tmp_pat
     second = skew_history._historical_curves("GLD", [sample_date])
     assert first == second
     assert len(first) == 1
-    reader.get_parquet.assert_called_once_with("GLD", sample_date)
-    archived.assert_called_once_with(source, sample_date)
+    reader.get_option_parquet.assert_called_once_with("GLD", sample_date)
+    archived.assert_called_once_with(str(source), sample_date)
 
 
 def test_latest_chain_prefers_current_intraday(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -106,7 +106,7 @@ def test_latest_chain_prefers_current_intraday(monkeypatch: pytest.MonkeyPatch) 
     )
     assert result.equals(frame)
     assert (sample_date, selected_expiry) == (today, expiry)
-    reader.get_parquet.assert_not_called()
+    reader.get_option_parquet.assert_not_called()
 
 
 def test_latest_chain_uses_quote_date_on_weekend(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -14,9 +14,11 @@ _CALC_VERSION = 1
 Observation = tuple[str, float | None, float | None]
 
 
-def _source_stamp(path: Path) -> tuple[int, int] | None:
+def _source_stamp(path: Path | str) -> tuple[int, int] | None:
+    if isinstance(path, str) and path.startswith("s3://"):
+        return (0, 0)
     try:
-        stat = path.stat()
+        stat = Path(path).stat()
     except OSError:
         return None
     return stat.st_size, stat.st_mtime_ns
@@ -43,7 +45,7 @@ class VolRegimeObservationStore:
         ).fetchone()
         if meta is None or meta[3] != _CALC_VERSION:
             return None
-        if _source_stamp(Path(meta[0])) != (meta[1], meta[2]):
+        if _source_stamp(meta[0]) != (meta[1], meta[2]):
             return None
         return self._conn.execute(
             """SELECT sampled_at, atm_iv, risk_reversal FROM observations
@@ -56,7 +58,7 @@ class VolRegimeObservationStore:
         symbol: str,
         sample_date: date,
         target_dte: int,
-        source_path: Path,
+        source_path: Path | str,
         observations: Sequence[Observation],
     ) -> None:
         stamp = _source_stamp(source_path)

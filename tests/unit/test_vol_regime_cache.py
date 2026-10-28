@@ -51,7 +51,7 @@ def test_historical_series_reuses_persisted_observations(
     source.write_bytes(b"immutable source")
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path))
     reader = MagicMock()
-    reader.get_parquet.return_value = source
+    reader.get_option_parquet.return_value = str(source)
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     compute = MagicMock(return_value=[("snapshot", 25.0, -1.5)])
     monkeypatch.setattr(vol_regime, "_historical_observations", compute)
@@ -59,8 +59,8 @@ def test_historical_series_reuses_persisted_observations(
 
     assert vol_regime._historical_series("GLD", [sample_date], 30) == ([25.0], [-1.5])
     assert vol_regime._historical_series("GLD", [sample_date], 30) == ([25.0], [-1.5])
-    reader.get_parquet.assert_called_once_with("GLD", sample_date)
-    compute.assert_called_once_with(source, sample_date, 30)
+    reader.get_option_parquet.assert_called_once_with("GLD", sample_date)
+    compute.assert_called_once_with(str(source), sample_date, 30)
 
 
 def test_current_chain_is_loaded_again_on_each_calculation(
@@ -69,7 +69,7 @@ def test_current_chain_is_loaded_again_on_each_calculation(
     today = date.today()
     expiry = today + timedelta(days=30)
     reader = MagicMock()
-    reader.list_sample_dates.return_value = [today - timedelta(days=1)]
+    reader.list_option_sample_dates.return_value = [today - timedelta(days=1)]
     reader.latest_snapshots.return_value = {expiry: "s3://bucket/latest.csv"}
     reader.load_intraday_snapshot.side_effect = [
         pd.DataFrame(

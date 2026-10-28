@@ -57,7 +57,7 @@ def test_bucket_stats_hit_skips_historical_load(
     source = tmp_path / "SPY.parquet"
     source.write_bytes(b"source")
     reader = MagicMock()
-    reader.ensure_parquet_files.return_value = [source]
+    reader.ensure_option_parquets.return_value = [source]
     monkeypatch.setattr(fixed_strike, "get_reader", lambda: reader)
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
     compute = MagicMock(side_effect=AssertionError("cache hit should skip calculation"))
@@ -78,7 +78,7 @@ def test_bucket_stats_miss_calculates_and_persists(
     source = tmp_path / "SPY.parquet"
     source.write_bytes(b"source")
     reader = MagicMock()
-    reader.ensure_parquet_files.return_value = [source]
+    reader.ensure_option_parquets.return_value = [source]
     monkeypatch.setattr(fixed_strike, "get_reader", lambda: reader)
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
     frames = [pd.DataFrame({"strike": [100]})]
