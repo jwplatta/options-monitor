@@ -1808,6 +1808,7 @@ dependencies = [
     { name = "pandas" },
     { name = "plotly" },
     { name = "pyarrow" },
+    { name = "pyiceberg", extra = ["sql-postgres"] },
     { name = "pytz" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1834,6 +1835,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "plotly", specifier = ">=5.22" },
     { name = "pyarrow", specifier = ">=23.0.1" },
+    { name = "pyiceberg", extras = ["sql-postgres"], specifier = ">=0.7" },
     { name = "pytz", specifier = ">=2026.2" },
     { name = "scipy", specifier = ">=1.13" },
     { name = "streamlit", specifier = ">=1.56.0" },
@@ -3488,7 +3490,7 @@ wheels = [
 [[package]]
 name = "tractatus"
 version = "0.1.0"
-source = { git = "https://github.com/jwplatta/tractatus.git?rev=main#7849df8514fc3132c4fe45d08630122264ab4ed7" }
+source = { git = "https://github.com/jwplatta/tractatus.git?rev=main#a979e4d375e6fc14f5eff4e584c67b007c0b8b5b" }
 dependencies = [
     { name = "boto3" },
     { name = "duckdb" },
