@@ -15,7 +15,9 @@ from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 
 
 @st.cache_data(ttl=30)
-def load_options_snapshot(path_or_uri: Path | str, _reader: CacheReader | None = None) -> pd.DataFrame:
+def load_options_snapshot(
+    path_or_uri: Path | str, _reader: CacheReader | None = None
+) -> pd.DataFrame:
     """Load live URIs through Tractatus; accept local files for pure chart callers."""
     if isinstance(path_or_uri, str) and path_or_uri.startswith("s3://"):
         return cast(pd.DataFrame, (_reader or get_reader()).load_intraday_snapshot(path_or_uri))

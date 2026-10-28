@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+
 import duckdb
 import pandas as pd
 import streamlit as st
