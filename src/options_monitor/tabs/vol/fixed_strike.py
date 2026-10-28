@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -60,9 +59,7 @@ def _load_bucket_stats(symbol: str, lookback_days: int, interval_minutes: int) -
     """Reuse source-validated historical bucket statistics when available."""
     today = date.today()
     lookback_start = today - timedelta(days=lookback_days)
-    source_paths = [
-        Path(path) for path in get_reader().ensure_option_parquets(symbol, lookback_start, today)
-    ]
+    source_paths = get_reader().ensure_option_parquets(symbol, lookback_start, today)
     if not source_paths:
         empty = pd.DataFrame(columns=["iv_mean", "iv_std", "count"])
         empty.attrs["sample_days"] = 0

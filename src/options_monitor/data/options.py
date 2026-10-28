@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 from tractatus.reader import Reader
 
-from options_monitor.data.reader import get_reader
+from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 
 
 @st.cache_data(ttl=30)
@@ -160,6 +160,7 @@ def load_latest_historical_sample_per_date(
         ORDER BY filename, expiration_date, sampled_at
     """
     with duckdb.connect() as conn:
+        configure_duckdb_httpfs(conn)
         return conn.execute(query, [paths]).df()
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import duckdb
@@ -12,7 +11,7 @@ import streamlit as st
 
 from options_monitor.calc.vol_skew_history import otm_skew_points
 from options_monitor.charts.vol_skew_history import build_vol_skew_history_chart
-from options_monitor.data.reader import get_reader
+from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 from options_monitor.data.vol_skew_cache import SkewCurveStore
 
 _TARGET_DTE = 30
@@ -27,9 +26,10 @@ def _closest_expiry(expirations: list[date], sample_date: date) -> date | None:
     return min(valid, key=lambda expiry: abs((expiry - sample_date).days - _TARGET_DTE))
 
 
-def _archived_snapshot(path: Path, sample_date: date) -> tuple[pd.DataFrame, date | None]:
+def _archived_snapshot(path: str, sample_date: date) -> tuple[pd.DataFrame, date | None]:
     """Read only the last option chain for the expiry nearest 30 DTE."""
     with duckdb.connect() as conn:
+        configure_duckdb_httpfs(conn)
         expirations = [
             date.fromisoformat(str(row[0])[:10])
             for row in conn.execute(
@@ -119,7 +119,7 @@ def _latest_chain(
         path = reader.get_option_parquet(symbol, sample_date)
     except FileNotFoundError:
         return pd.DataFrame(), None, None
-    frame, expiry = _archived_snapshot(Path(path), sample_date)
+    frame, expiry = _archived_snapshot(path, sample_date)
     return frame, sample_date, expiry
 
 
@@ -135,14 +135,13 @@ def _historical_curves(symbol: str, dates: list[date]) -> list[list[tuple[float,
                     path = reader.get_option_parquet(symbol, sample_date)
                 except FileNotFoundError:
                     continue
-                source = Path(path)
                 try:
-                    frame, _ = _archived_snapshot(source, sample_date)
+                    frame, _ = _archived_snapshot(path, sample_date)
                 except (duckdb.Error, ValueError):
                     continue
                 spot = _spot(frame)
                 points = otm_skew_points(frame, spot) if spot is not None else []
-                store.put(symbol, sample_date, _TARGET_DTE, source, points)
+                store.put(symbol, sample_date, _TARGET_DTE, path, points)
             if len(points) >= 2:
                 curves.append(points)
     return curves

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from pathlib import Path
-
 import duckdb
 import pandas as pd
 import streamlit as st
@@ -13,7 +11,7 @@ from tractatus.tickrake.options.queries import OPTIONS_DTYPES
 
 from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.charts.vol_regime import build_vol_regime_chart
-from options_monitor.data.reader import get_reader
+from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 from options_monitor.data.roots import available_roots
 from options_monitor.data.vol_regime_cache import Observation, VolRegimeObservationStore
 
@@ -22,10 +20,11 @@ _LOOKBACK_OPTIONS = [30, 45, 60, 180, 360]
 
 
 def _historical_observations(
-    parquet_path: Path, sample_date: date, target_dte: int
+    parquet_path: str, sample_date: date, target_dte: int
 ) -> list[Observation]:
     """Calculate the two daily IV/RR observations from one archived chain."""
     with duckdb.connect() as conn:
+        configure_duckdb_httpfs(conn)
         rows = conn.execute(
             "SELECT DISTINCT expiration_date FROM read_parquet(?)", [str(parquet_path)]
         ).fetchall()
@@ -77,10 +76,9 @@ def _historical_series(
             observations = store.get(symbol, sample_date, target_dte)
             if observations is None:
                 try:
-                    path = reader.get_option_parquet(symbol, sample_date)
+                    parquet_path = reader.get_option_parquet(symbol, sample_date)
                 except FileNotFoundError:
                     continue
-                parquet_path = Path(path)
                 observations = _historical_observations(parquet_path, sample_date, target_dte)
                 store.put(symbol, sample_date, target_dte, parquet_path, observations)
             for _, iv, rr in observations:
@@ -128,9 +126,10 @@ def _pick_expiry_from_parquet(
 
     try:
         with duckdb.connect() as conn:
+            configure_duckdb_httpfs(conn)
             rows = conn.execute(
                 "SELECT DISTINCT expiration_date FROM read_parquet(?)",
-                [str(parquet_path)],
+                [parquet_path],
             ).fetchall()
     except Exception:
         return None
@@ -156,6 +155,7 @@ def _load_eod_snapshot_for_expiry(
     expiry_str = expiry.isoformat()
     try:
         with duckdb.connect() as conn:
+            configure_duckdb_httpfs(conn)
             df = conn.execute(
                 """
                 WITH last_sample AS (
@@ -169,7 +169,7 @@ def _load_eod_snapshot_for_expiry(
                 WHERE t.expiration_date = ?
                   AND t.sampled_at = ls.max_sa
                 """,
-                [str(parquet_path), expiry_str, str(parquet_path), expiry_str],
+                [parquet_path, expiry_str, parquet_path, expiry_str],
             ).df()
     except Exception:
         return pd.DataFrame()
@@ -199,6 +199,7 @@ def _load_daily_snapshots_for_expiry(
     expiry_str = expiry.isoformat()
     try:
         with duckdb.connect() as conn:
+            configure_duckdb_httpfs(conn)
             df = conn.execute(
                 """
                 WITH selected_times AS (
@@ -218,7 +219,7 @@ def _load_daily_snapshots_for_expiry(
                   AND t.sampled_at IN (s.after_open, s.last_sample)
                 ORDER BY t.sampled_at
                 """,
-                [str(parquet_path), expiry_str, str(parquet_path), expiry_str],
+                [parquet_path, expiry_str, parquet_path, expiry_str],
             ).df()
     except Exception:
         return []
