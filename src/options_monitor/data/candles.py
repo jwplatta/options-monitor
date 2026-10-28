@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import cast
 
 import pandas as pd
 import streamlit as st
-from tractatus.reader import DataReader
+from tractatus.reader import Reader
 
 from options_monitor.data.reader import get_reader
 
@@ -15,11 +14,9 @@ _PROVIDER = "ibkr-paper"
 
 
 @st.cache_data(ttl=300)
-def _load_full_candles(symbol: str, freq: str, _reader: DataReader | None = None) -> pd.DataFrame:
-    df = cast(
-        pd.DataFrame, (_reader or get_reader()).load_candles(symbol, freq, provider=_PROVIDER)
-    )
-    return df[["datetime", "open", "high", "low", "close", "volume"]]
+def _load_full_candles(symbol: str, freq: str, _reader: Reader | None = None) -> pd.DataFrame:
+    df = (_reader or get_reader()).candles(_PROVIDER, symbols=[symbol], frequency=freq)
+    return df[["datetime", "open", "high", "low", "close", "volume"]]  # type: ignore[no-any-return]
 
 
 def load_candles(
@@ -27,7 +24,7 @@ def load_candles(
     freq: str,
     start: date | None = None,
     end: date | None = None,
-    _reader: DataReader | None = None,
+    _reader: Reader | None = None,
 ) -> pd.DataFrame:
     df = _load_full_candles(symbol, freq, _reader)
     tz = df["datetime"].dt.tz
@@ -42,7 +39,7 @@ def load_candles(
 
 @st.cache_data(ttl=300)
 def list_available_dates(
-    symbol: str, freq: str, _reader: DataReader | None = None
+    symbol: str, freq: str, _reader: Reader | None = None
 ) -> tuple[datetime, datetime]:
     df = _load_full_candles(symbol, freq, _reader)
     return df["datetime"].iloc[0].to_pydatetime(), df["datetime"].iloc[-1].to_pydatetime()

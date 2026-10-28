@@ -30,31 +30,29 @@ def test_expiry_dates_are_derived_from_cached_parquets(tmp_path: Path) -> None:
     reader = MagicMock()
     expiry = date(2026, 4, 18)
     first, second = date(2026, 4, 14), date(2026, 4, 15)
-    reader.list_sample_dates.return_value = [first, second]
-    reader.get_parquet.side_effect = [None, tmp_path / "cached.parquet"]
+    parquet = tmp_path / "cached.parquet"
+    reader.list_option_sample_dates.return_value = [first, second]
+    reader.get_option_parquet.side_effect = [FileNotFoundError(), parquet]
     reader.options_query.list_snapshot_times.return_value = [datetime(2026, 4, 15, 15)]
     assert list_snapshot_dates_for_expiry("SPXW", expiry, _reader=reader) == [second]
-    reader.options_query.list_snapshot_times.assert_called_once_with(
-        tmp_path / "cached.parquet", expiry
-    )
+    reader.options_query.list_snapshot_times.assert_called_once_with(parquet, expiry)
 
 
 def test_expirations_window_uses_reader_query(tmp_path: Path) -> None:
     reader = MagicMock()
-    reader.get_parquet.return_value = tmp_path / "cached.parquet"
+    parquet = tmp_path / "cached.parquet"
+    reader.get_option_parquet.return_value = parquet
     reader.options_query.list_expirations.return_value = [date(2026, 4, 16), date(2026, 4, 18)]
     assert list_expirations_for_window_on_date(
         "SPXW", date(2026, 4, 15), 2, False, _reader=reader
     ) == [date(2026, 4, 16)]
-    reader.options_query.list_expirations.assert_called_once_with(
-        tmp_path / "cached.parquet", date(2026, 4, 16)
-    )
+    reader.options_query.list_expirations.assert_called_once_with(parquet, date(2026, 4, 16))
 
 
 def test_archive_miss_returns_none() -> None:
     reader = MagicMock()
-    reader.list_sample_dates.return_value = [date(2026, 4, 15)]
-    reader.get_parquet.return_value = None
+    reader.list_option_sample_dates.return_value = [date(2026, 4, 15)]
+    reader.get_option_parquet.side_effect = FileNotFoundError()
     assert parquet_path_for_date("SPXW", date(2026, 4, 15), _reader=reader) is None
     assert load_latest_archived_window("SPXW", date(2026, 4, 15), 5, _reader=reader) is None
 
@@ -64,7 +62,7 @@ def test_historical_window_caches_range_before_query(tmp_path: Path) -> None:
     path = tmp_path / "2026" / "04" / "15"
     path.mkdir(parents=True)
     (path / "SPXW_samples_2026-04-15.parquet").touch()
-    reader.ensure_parquet_files.return_value = [
+    reader.ensure_option_parquets.return_value = [
         str(tmp_path / "2026" / "04" / "15" / "SPXW.parquet")
     ]
     reader.options_query.load_sample_window.return_value = pd.DataFrame({"strike": [5000]})
@@ -72,9 +70,9 @@ def test_historical_window_caches_range_before_query(tmp_path: Path) -> None:
     result = load_historical_sample_window(
         "SPXW", date(2026, 4, 1), 30, columns=columns, _reader=reader
     )
-    reader.ensure_parquet_files.assert_called_once_with("SPXW", date(2026, 4, 1), date.today())
+    reader.ensure_option_parquets.assert_called_once_with("SPXW", date(2026, 4, 1), date.today())
     reader.options_query.load_sample_window.assert_called_once_with(
-        reader.ensure_parquet_files.return_value, date(2026, 4, 1), 30, columns=columns
+        reader.ensure_option_parquets.return_value, date(2026, 4, 1), 30, columns=columns
     )
     assert len(result) == 1
 
@@ -95,7 +93,7 @@ def test_latest_historical_sample_per_date_selects_latest_chain_per_expiry(
             ") AS t(sampled_at, expiration_date, open_interest)) TO ? (FORMAT PARQUET)",
             [str(parquet_path)],
         )
-    reader.ensure_parquet_files.return_value = [str(parquet_path)]
+    reader.ensure_option_parquets.return_value = [str(parquet_path)]
     columns = ["sampled_at", "expiration_date", "open_interest"]
     result = load_latest_historical_sample_per_date(
         "SPXW", prior_date, columns=columns, _reader=reader
@@ -109,4 +107,4 @@ def test_latest_historical_sample_per_date_selects_latest_chain_per_expiry(
     assert result["open_interest"].tolist() == [10, 40]
     assert pd.to_datetime(result["sample_date"]).dt.date.tolist() == [sample_date, sample_date]
     assert list(result.columns) == [*columns, "sample_date"]
-    reader.ensure_parquet_files.assert_called_once_with("SPXW", prior_date, date.today())
+    reader.ensure_option_parquets.assert_called_once_with("SPXW", prior_date, date.today())

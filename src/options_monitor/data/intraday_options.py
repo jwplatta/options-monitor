@@ -7,7 +7,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import streamlit as st
-from tractatus.reader import DataReader
+from tractatus.reader import Reader
 
 from options_monitor.data.reader import get_reader
 
@@ -15,12 +15,12 @@ _CHICAGO = ZoneInfo("America/Chicago")
 
 
 @st.cache_data(ttl=60)
-def list_expirations(symbol: str, _reader: DataReader | None = None) -> list[date]:
+def list_expirations(symbol: str, _reader: Reader | None = None) -> list[date]:
     return cast(list[date], (_reader or get_reader()).list_intraday_expirations(symbol))
 
 
 @st.cache_data(ttl=30)
-def find_intraday_updated_at(symbol: str, _reader: DataReader | None = None) -> datetime | None:
+def find_intraday_updated_at(symbol: str, _reader: Reader | None = None) -> datetime | None:
     return cast(datetime | None, (_reader or get_reader()).intraday_updated_at(symbol))
 
 
@@ -30,7 +30,7 @@ def find_series_snapshots(
     start_date: date,
     days_out: int,
     include_0dte: bool = True,
-    _reader: DataReader | None = None,
+    _reader: Reader | None = None,
 ) -> list[dict[str, Any]]:
     start = start_date if include_0dte else start_date + timedelta(days=1)
     end = start_date + timedelta(days=days_out)
@@ -43,7 +43,7 @@ def find_first_snapshots(
     start_date: date,
     days_out: int,
     include_0dte: bool = True,
-    _reader: DataReader | None = None,
+    _reader: Reader | None = None,
 ) -> dict[date, dict[str, Any]]:
     """Return the earliest intraday snapshot entry for each expiration date."""
     start = start_date if include_0dte else start_date + timedelta(days=1)
@@ -72,7 +72,7 @@ def find_latest_snapshots(
     start_date: date,
     days_out: int,
     include_0dte: bool = True,
-    _reader: DataReader | None = None,
+    _reader: Reader | None = None,
 ) -> dict[date, str]:
     start = start_date if include_0dte else start_date + timedelta(days=1)
     end = start_date + timedelta(days=days_out)
