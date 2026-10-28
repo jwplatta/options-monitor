@@ -9,13 +9,13 @@ from typing import cast
 import duckdb
 import pandas as pd
 import streamlit as st
-from tractatus.reader import Reader
+from tractatus.reader import CacheReader
 
 from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 
 
 @st.cache_data(ttl=30)
-def load_options_snapshot(path_or_uri: Path | str, _reader: Reader | None = None) -> pd.DataFrame:
+def load_options_snapshot(path_or_uri: Path | str, _reader: CacheReader | None = None) -> pd.DataFrame:
     """Load live URIs through Tractatus; accept local files for pure chart callers."""
     if isinstance(path_or_uri, str) and path_or_uri.startswith("s3://"):
         return cast(pd.DataFrame, (_reader or get_reader()).load_intraday_snapshot(path_or_uri))
@@ -30,13 +30,13 @@ def load_options_snapshot(path_or_uri: Path | str, _reader: Reader | None = None
 
 
 @st.cache_data(ttl=60)
-def list_snapshot_dates(symbol: str, _reader: Reader | None = None) -> list[date]:
+def list_snapshot_dates(symbol: str, _reader: CacheReader | None = None) -> list[date]:
     return cast(list[date], (_reader or get_reader()).list_option_sample_dates(symbol))
 
 
 @st.cache_data(ttl=60)
 def list_snapshot_dates_for_expiry(
-    symbol: str, expiry: date, _reader: Reader | None = None
+    symbol: str, expiry: date, _reader: CacheReader | None = None
 ) -> list[date]:
     reader = _reader or get_reader()
     found: list[date] = []
@@ -56,7 +56,7 @@ def list_expirations_for_window_on_date(
     sample_date: date,
     days_out: int,
     include_0dte: bool = True,
-    _reader: Reader | None = None,
+    _reader: CacheReader | None = None,
 ) -> list[date]:
     start = sample_date if include_0dte else sample_date + timedelta(days=1)
     end = sample_date + timedelta(days=days_out)
@@ -72,7 +72,7 @@ def list_expirations_for_window_on_date(
 
 @st.cache_data(ttl=60, max_entries=20)
 def parquet_path_for_date(
-    symbol: str, sample_date: date, _reader: Reader | None = None
+    symbol: str, sample_date: date, _reader: CacheReader | None = None
 ) -> Path | None:
     try:
         return (_reader or get_reader()).get_option_parquet(symbol, sample_date)  # type: ignore[no-any-return]
@@ -82,7 +82,7 @@ def parquet_path_for_date(
 
 @st.cache_data(ttl=60)
 def find_historical_snapshot_times(
-    expiry: date, parquet_path: Path, _reader: Reader | None = None
+    expiry: date, parquet_path: Path, _reader: CacheReader | None = None
 ) -> list[datetime]:
     return cast(
         list[datetime],
@@ -96,7 +96,7 @@ def load_historical_snapshot(
     expiry: date,
     sampled_at: datetime,
     parquet_path: Path,
-    _reader: Reader | None = None,
+    _reader: CacheReader | None = None,
 ) -> pd.DataFrame:
     return cast(
         pd.DataFrame,
@@ -110,7 +110,7 @@ def load_historical_expiry(
     expiry: date,
     sample_date: date,
     parquet_path: Path,
-    _reader: Reader | None = None,
+    _reader: CacheReader | None = None,
 ) -> pd.DataFrame:
     return cast(
         pd.DataFrame, (_reader or get_reader()).options_query.load_expiry(parquet_path, expiry)
@@ -123,7 +123,7 @@ def load_historical_sample_window(
     sample_start: date,
     interval_minutes: int,
     columns: list[str] | None = None,
-    _reader: Reader | None = None,
+    _reader: CacheReader | None = None,
 ) -> pd.DataFrame:
     reader = _reader or get_reader()
     end_date = date.today()
@@ -143,7 +143,7 @@ def load_latest_historical_sample_per_date(
     symbol: str,
     sample_start: date,
     columns: list[str],
-    _reader: Reader | None = None,
+    _reader: CacheReader | None = None,
 ) -> pd.DataFrame:
     """Load the latest snapshot for each expiry on every available sample date."""
     reader = _reader or get_reader()
@@ -170,7 +170,7 @@ def load_latest_archived_window(
     start_date: date,
     days_out: int,
     include_0dte: bool = True,
-    _reader: Reader | None = None,
+    _reader: CacheReader | None = None,
 ) -> tuple[datetime, dict[date, pd.DataFrame]] | None:
     reader = _reader or get_reader()
     dates = reader.list_option_sample_dates(symbol)
@@ -196,7 +196,7 @@ def load_latest_archived_window(
 
 
 @st.cache_data(ttl=60)
-def list_expirations_from_archive(symbol: str, _reader: Reader | None = None) -> list[date]:
+def list_expirations_from_archive(symbol: str, _reader: CacheReader | None = None) -> list[date]:
     reader = _reader or get_reader()
     dates = reader.list_option_sample_dates(symbol)
     if not dates:
@@ -210,7 +210,7 @@ def list_expirations_from_archive(symbol: str, _reader: Reader | None = None) ->
 
 @st.cache_data(ttl=60)
 def load_latest_archived_single_expiry(
-    symbol: str, expiry: date, _reader: Reader | None = None
+    symbol: str, expiry: date, _reader: CacheReader | None = None
 ) -> tuple[datetime, pd.DataFrame] | None:
     reader = _reader or get_reader()
     dates = reader.list_option_sample_dates(symbol)
