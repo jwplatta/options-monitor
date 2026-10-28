@@ -115,8 +115,9 @@ def _latest_chain(
     if not dates or dates[-1] < today - timedelta(days=3):
         return pd.DataFrame(), None, None
     sample_date = dates[-1]
-    path = reader.get_parquet(symbol, sample_date)
-    if path is None:
+    try:
+        path = reader.get_option_parquet(symbol, sample_date)
+    except FileNotFoundError:
         return pd.DataFrame(), None, None
     frame, expiry = _archived_snapshot(Path(path), sample_date)
     return frame, sample_date, expiry
@@ -130,8 +131,9 @@ def _historical_curves(symbol: str, dates: list[date]) -> list[list[tuple[float,
         for sample_date in dates:
             points = store.get(symbol, sample_date, _TARGET_DTE)
             if points is None:
-                path = reader.get_parquet(symbol, sample_date)
-                if path is None:
+                try:
+                    path = reader.get_option_parquet(symbol, sample_date)
+                except FileNotFoundError:
                     continue
                 source = Path(path)
                 try:
@@ -162,7 +164,7 @@ def render_skew_history_tab() -> None:
 
     today = datetime.now(_NEW_YORK).date()
     reader = get_reader()
-    dates = sorted(d for d in reader.list_sample_dates(symbol) if d <= today)
+    dates = sorted(d for d in reader.list_option_sample_dates(symbol) if d <= today)
     current, sample_date, expiry = _latest_chain(symbol, today, dates)
     spot = _spot(current)
     if current.empty or spot is None or sample_date is None or expiry is None:

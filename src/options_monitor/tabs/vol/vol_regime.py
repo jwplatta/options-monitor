@@ -76,8 +76,9 @@ def _historical_series(
         for sample_date in dates:
             observations = store.get(symbol, sample_date, target_dte)
             if observations is None:
-                path = reader.get_parquet(symbol, sample_date)
-                if path is None:
+                try:
+                    path = reader.get_option_parquet(symbol, sample_date)
+                except FileNotFoundError:
                     continue
                 parquet_path = Path(path)
                 observations = _historical_observations(parquet_path, sample_date, target_dte)
@@ -92,7 +93,7 @@ def _historical_series(
 
 def _available_sample_dates(symbol: str, start_date: date, end_date: date) -> list[date]:
     """Use the reader's published dates for the requested lookback window."""
-    return [d for d in get_reader().list_sample_dates(symbol) if start_date <= d <= end_date]
+    return [d for d in get_reader().list_option_sample_dates(symbol) if start_date <= d <= end_date]
 
 
 def _pick_expiry(expirations: list[date], today: date, target_dte: int) -> date | None:
@@ -118,7 +119,10 @@ def _pick_expiry_from_parquet(
     target_dte: int,
 ) -> date | None:
     """Pick the closest available expiry from one historical parquet."""
-    parquet_path = get_reader().get_parquet(symbol, sample_date)
+    try:
+        parquet_path = get_reader().get_option_parquet(symbol, sample_date)
+    except FileNotFoundError:
+        parquet_path = None
     if parquet_path is None:
         return None
 
@@ -142,7 +146,10 @@ def _load_eod_snapshot_for_expiry(
     expiry: date,
 ) -> pd.DataFrame:
     """Load the last snapshot for a symbol/date/expiry from archived parquet."""
-    parquet_path = get_reader().get_parquet(symbol, sample_date)
+    try:
+        parquet_path = get_reader().get_option_parquet(symbol, sample_date)
+    except FileNotFoundError:
+        parquet_path = None
     if parquet_path is None:
         return pd.DataFrame()
 
@@ -182,7 +189,10 @@ def _load_daily_snapshots_for_expiry(
     expiry: date,
 ) -> list[pd.DataFrame]:
     """Load the first chain at/after 10:30 ET and the day's last chain."""
-    parquet_path = get_reader().get_parquet(symbol, sample_date)
+    try:
+        parquet_path = get_reader().get_option_parquet(symbol, sample_date)
+    except FileNotFoundError:
+        parquet_path = None
     if parquet_path is None:
         return []
 

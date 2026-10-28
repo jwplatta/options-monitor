@@ -61,7 +61,7 @@ def _load_bucket_stats(symbol: str, lookback_days: int, interval_minutes: int) -
     today = date.today()
     lookback_start = today - timedelta(days=lookback_days)
     source_paths = [
-        Path(path) for path in get_reader().ensure_parquet_files(symbol, lookback_start, today)
+        Path(path) for path in get_reader().ensure_option_parquets(symbol, lookback_start, today)
     ]
     if not source_paths:
         empty = pd.DataFrame(columns=["iv_mean", "iv_std", "count"])
