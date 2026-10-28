@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Vol Regime now reads persistent historical IV/RR metrics while a bounded background worker refreshes revisioned CacheReader sources. Warmup lists and configurable 365-day retention persist in the shared SQLite database; daily cleanup retires expired metrics.
+- Historical cache migrations destructively rebuild legacy Vol Regime tables. Root metadata survives app restarts and refreshes on the shared worker.
 - Moved symbol selection from the sidebar into independent chart controls; Vol Regime retains its multi-symbol selector.
 - Simplified Vol subtabs to Fixed Strike Vol, Volatility Skew, and Vol Regime. Added a latest 30-DTE skew chart against a persistent historical 10th–90th percentile band.
 - Vol Regime now refreshes its current chain every 30 seconds and stores source-validated historical IV and risk-reversal observations in a separate persistent Options Monitor SQLite cache.

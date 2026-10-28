@@ -13,7 +13,7 @@ def configure_duckdb_httpfs(conn: duckdb.DuckDBPyConnection) -> None:
 
     Used for ad-hoc duckdb.connect() calls in tab files that don't go through CacheReader.
     """
-    CacheReader._configure_conn(conn, ReaderConfig.load())
+    CacheReader.configure_connection(conn, ReaderConfig.load())
 
 
 _connection = duckdb.connect(os.environ.get("DUCKDB_OPTIONS_PATH", "/tmp/duckdb_options.db"))

@@ -1839,7 +1839,7 @@ requires-dist = [
     { name = "pytz", specifier = ">=2026.2" },
     { name = "scipy", specifier = ">=1.13" },
     { name = "streamlit", specifier = ">=1.56.0" },
-    { name = "tractatus", git = "https://github.com/jwplatta/tractatus.git?rev=main" },
+    { name = "tractatus", git = "https://github.com/jwplatta/tractatus.git?rev=975cc2859f41d4b5fba3738324a325ddaa777ac5" },
 ]
 
 [package.metadata.requires-dev]
@@ -3490,7 +3490,7 @@ wheels = [
 [[package]]
 name = "tractatus"
 version = "0.1.0"
-source = { git = "https://github.com/jwplatta/tractatus.git?rev=main#a979e4d375e6fc14f5eff4e584c67b007c0b8b5b" }
+source = { git = "https://github.com/jwplatta/tractatus.git?rev=975cc2859f41d4b5fba3738324a325ddaa777ac5#975cc2859f41d4b5fba3738324a325ddaa777ac5" }
 dependencies = [
     { name = "boto3" },
     { name = "duckdb" },

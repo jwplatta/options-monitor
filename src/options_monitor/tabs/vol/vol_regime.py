@@ -12,87 +12,23 @@ from tractatus.tickrake.options.queries import OPTIONS_DTYPES
 
 from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.charts.vol_regime import build_vol_regime_chart
+from options_monitor.data import vol_regime_jobs
+from options_monitor.data.cache_jobs import market_today
+from options_monitor.data.cache_settings_ui import render_cache_settings
 from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 from options_monitor.data.roots import available_roots
-from options_monitor.data.vol_regime_cache import Observation, VolRegimeObservationStore
 
 _TARGET_DTE_OPTIONS = [5, 15, 30, 45]
 _LOOKBACK_OPTIONS = [30, 45, 60, 180, 360]
 
 
-def _historical_observations(
-    parquet_path: str, sample_date: date, target_dte: int
-) -> list[Observation]:
-    """Calculate the two daily IV/RR observations from one archived chain."""
-    with duckdb.connect() as conn:
-        configure_duckdb_httpfs(conn)
-        rows = conn.execute(
-            "SELECT DISTINCT expiration_date FROM read_parquet(?)", [str(parquet_path)]
-        ).fetchall()
-        expirations = [date.fromisoformat(str(row[0])[:10]) for row in rows]
-        expiry = _pick_expiry(expirations, sample_date, target_dte)
-        if expiry is None:
-            return []
-        df = conn.execute(
-            """
-            WITH selected_times AS (
-                SELECT MIN(sampled_at) FILTER (
-                    WHERE CAST(sampled_at AT TIME ZONE 'America/New_York' AS TIME)
-                          >= TIME '10:30:00'
-                ) AS after_open, MAX(sampled_at) AS last_sample
-                FROM read_parquet(?) WHERE expiration_date = ?
-            )
-            SELECT t.sampled_at, t.expiration_date, t.strike, t.volatility,
-                   t.delta, t.contract_type, t.underlying_price
-            FROM read_parquet(?) t, selected_times s
-            WHERE t.expiration_date = ?
-              AND t.sampled_at IN (s.after_open, s.last_sample)
-            ORDER BY t.sampled_at
-            """,
-            [str(parquet_path), expiry.isoformat(), str(parquet_path), expiry.isoformat()],
-        ).df()
-    if df.empty:
-        return []
-    df = df.astype({col: dtype for col, dtype in OPTIONS_DTYPES.items() if col in df.columns})
-    df["contract_type"] = df["contract_type"].str.upper()
-    result: list[Observation] = []
-    for sampled_at, frame in df.groupby("sampled_at", sort=True):
-        spot_values = frame["underlying_price"].dropna()
-        if spot_values.empty:
-            continue
-        iv = compute_atm_iv(frame, float(spot_values.iloc[0]))
-        rr_result = compute_risk_reversal(frame)
-        result.append((str(sampled_at), iv, rr_result.rr if rr_result is not None else None))
-    return result
-
-
-def _historical_series(
-    symbol: str, dates: list[date], target_dte: int
-) -> tuple[list[float], list[float]]:
-    ivs: list[float] = []
-    rrs: list[float] = []
-    reader = get_reader()
-    with VolRegimeObservationStore() as store:
-        for sample_date in dates:
-            observations = store.get(symbol, sample_date, target_dte)
-            if observations is None:
-                try:
-                    parquet_path = reader.get_option_parquet(symbol, sample_date)
-                except FileNotFoundError:
-                    continue
-                observations = _historical_observations(parquet_path, sample_date, target_dte)
-                store.put(symbol, sample_date, target_dte, parquet_path, observations)
-            for _, iv, rr in observations:
-                if iv is not None:
-                    ivs.append(iv)
-                if rr is not None:
-                    rrs.append(rr)
-    return ivs, rrs
-
-
 def _available_sample_dates(symbol: str, start_date: date, end_date: date) -> list[date]:
     """Use the reader's published dates for the requested lookback window."""
-    return [d for d in get_reader().list_option_sample_dates(symbol) if start_date <= d <= end_date]
+    return [
+        d
+        for d in vol_regime_jobs.available_dates(symbol, start_date, end_date)
+        if start_date <= d <= end_date
+    ]
 
 
 def _pick_expiry(expirations: list[date], today: date, target_dte: int) -> date | None:
@@ -239,17 +175,15 @@ def _compute_vol_regime_data(
     lookback_days: int,
 ) -> pd.DataFrame:
     """Compute vol regime percentiles for all symbols."""
-    today = date.today()
+    today = market_today()
     rows: list[dict[str, object]] = []
 
     for symbol in symbols:
         hist_dates = _available_sample_dates(symbol, today - timedelta(days=lookback_days), today)
-        if not hist_dates:
-            continue
 
         # The "current" snapshot is either today's intraday or the most
         # recent archived date (handles weekends / holidays gracefully).
-        current_date = hist_dates[-1]  # most recent archived date
+        current_date = hist_dates[-1] if hist_dates else today
 
         # Try live intraday first — if available it's fresher
         current_expiry_df: pd.DataFrame | None = None
@@ -291,6 +225,8 @@ def _compute_vol_regime_data(
 
         # Fallback: use most recent archived EOD snapshot
         if current_expiry_df is None:
+            if not hist_dates:
+                continue
             current_date = hist_dates[-1]
             if current_date < today - timedelta(days=3):
                 continue
@@ -326,11 +262,9 @@ def _compute_vol_regime_data(
         # Each historical date picks its own nearest-to-target-DTE expiry
         # (the same fixed expiry often didn't exist weeks ago).
         lookback_start = current_date - timedelta(days=lookback_days)
-        lookback_dates = [d for d in hist_dates if lookback_start <= d < current_date]
-        if not lookback_dates:
-            continue
-        history_through = max(lookback_dates) if lookback_dates else None
-        hist_ivs, hist_rrs = _historical_series(symbol, lookback_dates, target_dte)
+        hist_ivs, hist_rrs, history_through = vol_regime_jobs.history(
+            symbol, target_dte, lookback_start, current_date
+        )
 
         point = build_vol_regime_row(current_iv, current_rr, hist_ivs, hist_rrs)
         if point is None or expiry is None:
@@ -375,6 +309,7 @@ def _compute_vol_regime_data(
 def render_vol_regime_tab() -> None:
     """Render the Vol Regime subtab."""
     roots, roots_loaded = available_roots()
+    render_cache_settings(roots)
 
     # Streamlit's multiselect inserts a built-in "Select all" as its first
     # dropdown option. Hide that option only while this picker is open.
@@ -422,8 +357,20 @@ def render_vol_regime_tab() -> None:
         st.info("Select one or more symbols to generate the vol regime chart.")
         return
 
-    if lookback >= 180:
-        st.caption("First load may take several minutes while historical samples are cached.")
+    jobs = vol_regime_jobs.runtime()
+    for symbol in selected:
+        jobs.request("vol_regime", symbol, {"target_dte": target_dte})
+        state = jobs.state("vol_regime", symbol, {"target_dte": target_dte})
+        st.caption(
+            f"{symbol}: historical cache {state.get('status', 'queued')} · "
+            f"last verified {state.get('completed_at') or 'not yet'}"
+        )
+        if state.get("last_error"):
+            st.warning(
+                f"{symbol}: refresh failed; showing last successful history. {state['last_error']}"
+            )
+    if lookback > jobs.retention("vol_regime"):
+        st.warning("The requested lookback is truncated by the historical retention setting.")
     with st.spinner(f"Computing vol regime for {len(selected)} symbols..."):
         data = _compute_vol_regime_data(
             tuple(selected),
@@ -433,7 +380,7 @@ def render_vol_regime_tab() -> None:
 
     if data.empty:
         st.warning(
-            "No current percentile data for the selected symbols. "
+            "No current percentile data yet; historical cache jobs may still be running. "
             "A percentile needs at least three archived snapshots within the lookback window. "
             "Try a longer lookback."
         )

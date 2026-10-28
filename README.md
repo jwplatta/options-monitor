@@ -110,3 +110,26 @@ src/options_monitor/
 ├── charts/             # Plotly figure builders
 └── tabs/               # Streamlit tab renderers (gex, flow, oi, vol/*, history)
 ```
+
+## Historical chart caches
+
+Vol Regime stores calculated daily ATM IV and risk reversal in the shared Options
+Monitor SQLite cache. A single in-process worker refreshes historical data through
+Tractatus CacheReader, while chart requests reuse prior successful observations.
+Symbols selected on demand are cached without joining the warmup list.
+
+The Vol Regime **Historical cache settings** expander saves warmup symbols, target
+DTE, and retention in SQLite. Retention defaults to 365 calendar days. Daily cleanup
+also runs after app downtime, and queries never rehydrate dates outside retention.
+Status and last successful verification are shown above the chart; old archive
+coverage is reported independently from refresh status.
+
+All cache schemas/migrations are centralized in `data/sqlite_cache.py`. Job
+registration defines validation, computation, cleanup, refresh frequency and
+warmup defaults. Vol Skew and Fixed Strike retain their existing caches until
+separate migrations. See [the implementation plan](docs/plans/vol-regime-cache-jobs.md)
+for the schema and measurements.
+
+Dev defaults to `~/.cache/options-monitor-dev`, production keeps its existing cache
+path, and `OPTIONS_MONITOR_CACHE_DIR` overrides either. SQLite schema v2 destructively
+rebuilds the Vol Regime cache; its metrics are reconstructed in the background.

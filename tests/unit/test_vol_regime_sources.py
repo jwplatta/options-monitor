@@ -34,7 +34,11 @@ def _fixture_parquet(tmp_path: Path) -> tuple[Path, date, date, pd.DatetimeIndex
 def test_available_dates_come_from_reader(monkeypatch) -> None:
     reader = MagicMock()
     reader.list_option_sample_dates.return_value = [date(2026, 10, 13), date(2026, 10, 14)]
-    monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
+    monkeypatch.setattr(
+        vol_regime.vol_regime_jobs,
+        "available_dates",
+        lambda *args: reader.list_option_sample_dates(),
+    )
     assert vol_regime._available_sample_dates("GLD", date(2026, 10, 14), date(2026, 10, 15)) == [
         date(2026, 10, 14)
     ]
