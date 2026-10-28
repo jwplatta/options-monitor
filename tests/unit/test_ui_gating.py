@@ -12,27 +12,18 @@ from options_monitor.tabs import gex as gamma_map
 from options_monitor.tabs import history
 
 
-def test_symbol_change_reruns_full_dashboard_outside_widget_callback(monkeypatch) -> None:
-    state = {
-        "global_symbol": "SPY",
-        "_roots_ready_rerun": True,
-        "_last_dashboard_symbol": "SPXW",
-    }
-    rerun_scopes: list[str] = []
-    monkeypatch.setattr(app.st, "session_state", state)
-    monkeypatch.setattr(app, "available_roots", lambda: (["SPXW", "SPY"], True))
+def test_chart_symbol_selectors_are_independent(monkeypatch) -> None:
+    from options_monitor.data import symbol_selector as selectors
+
+    state = {"gex_symbol": "SPY", "history_symbol": "QQQ"}
+    monkeypatch.setattr(selectors.st, "session_state", state)
+    monkeypatch.setattr(selectors, "available_roots", lambda: (["SPXW", "SPY"], True))
     monkeypatch.setattr(
-        app.st,
-        "selectbox",
-        lambda label, roots, index, key: "SPY",
+        selectors.st, "selectbox", lambda label, options, index, key: options[index]
     )
-    monkeypatch.setattr(app.st, "rerun", lambda scope: rerun_scopes.append(scope))
-
-    app._render_symbol_selector.__wrapped__()
-    app._render_symbol_selector.__wrapped__()
-
-    assert rerun_scopes == ["app"]
-    assert state["_last_dashboard_symbol"] == "SPY"
+    assert selectors.symbol_selector("gex") == "SPY"
+    assert selectors.symbol_selector("history") == "QQQ"
+    assert "global_symbol" not in state
 
 
 def test_dashboard_router_only_invokes_selected_panel(monkeypatch) -> None:
@@ -177,8 +168,7 @@ def test_render_history_tab_only_requests_single_expiry_for_chain_history(
 
     history.render_history_tab()
 
-    # Symbol selector moved to global sidebar; history tab has no selectboxes.
-    assert selectbox_calls == []
+    assert selectbox_calls == ["Symbol"]
 
 
 def test_render_history_tab_skips_single_expiry_for_aggregate_history(
@@ -440,7 +430,7 @@ def test_history_view_warns_when_selected_date_has_no_snapshots(
     assert warnings
 
 
-def test_render_gex_tab_reads_global_symbol(monkeypatch, tmp_path: Path) -> None:
+def test_render_gex_tab_has_own_symbol_selector(monkeypatch, tmp_path: Path) -> None:
     """GEX tab reads symbol from global session state, not its own selectbox."""
     monkeypatch.setattr(gamma_map.st, "subheader", lambda *args, **kwargs: None)
     monkeypatch.setattr(gamma_map.st, "fragment", lambda **kwargs: lambda func: func)
@@ -463,4 +453,4 @@ def test_render_gex_tab_reads_global_symbol(monkeypatch, tmp_path: Path) -> None
 
     gamma_map.render_gex_tab()
 
-    assert "Symbol" not in selectbox_labels
+    assert "Symbol" in selectbox_labels

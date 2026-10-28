@@ -15,6 +15,7 @@ from options_monitor.data.fixed_strike_cache import FixedStrikeBucketStore
 from options_monitor.data.intraday_options import find_latest_snapshots
 from options_monitor.data.options import load_historical_sample_window, load_options_snapshot
 from options_monitor.data.reader import get_reader
+from options_monitor.data.symbol_selector import symbol_selector
 
 _CHICAGO = ZoneInfo("America/Chicago")
 
@@ -88,7 +89,7 @@ def _load_bucket_stats(symbol: str, lookback_days: int, interval_minutes: int) -
 
 def render_fixed_strike_tab() -> None:
     """Render the Fixed Strike Vol subtab."""
-    symbol = str(st.session_state.get("global_symbol", "SPXW"))
+    symbol = symbol_selector("fixed_strike")
     c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1, 1, 1])
     with c1:
         fsv_days_out = int(

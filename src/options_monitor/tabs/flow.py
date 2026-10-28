@@ -24,6 +24,7 @@ from options_monitor.data.options import (
     load_options_snapshot,
     parquet_path_for_date,
 )
+from options_monitor.data.symbol_selector import symbol_selector
 
 _CONTRACT_MAP = {"Both": "BOTH", "Calls": "CALL", "Puts": "PUT"}
 _CHICAGO = ZoneInfo("America/Chicago")
@@ -346,7 +347,7 @@ def _render_intraday_flow_view(
 
 def render_flow_tab() -> None:
     """Render the Flow tab with Flow Tape and Flow Profile charts."""
-    symbol = str(st.session_state.get("global_symbol", "SPXW"))
+    symbol = symbol_selector("flow")
     st.subheader("Flow")
 
     col_ctrl, col_chart = st.columns([1, 3])

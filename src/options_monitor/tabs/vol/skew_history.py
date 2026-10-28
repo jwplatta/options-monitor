@@ -12,6 +12,7 @@ import streamlit as st
 from options_monitor.calc.vol_skew_history import otm_skew_points
 from options_monitor.charts.vol_skew_history import build_vol_skew_history_chart
 from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
+from options_monitor.data.symbol_selector import symbol_selector
 from options_monitor.data.vol_skew_cache import SkewCurveStore
 
 _TARGET_DTE = 30
@@ -150,7 +151,7 @@ def _historical_curves(symbol: str, dates: list[date]) -> list[list[tuple[float,
 @st.fragment(run_every="30s")
 def render_skew_history_tab() -> None:
     """Render current 30-DTE skew with a historical IV band."""
-    symbol = str(st.session_state.get("global_symbol", "SPXW"))
+    symbol = symbol_selector("vol_skew")
     c1, c2 = st.columns(2)
     with c1:
         lookback = int(
