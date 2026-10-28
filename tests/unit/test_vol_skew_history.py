@@ -10,7 +10,8 @@ import pytest
 
 from options_monitor.calc.vol_skew_history import historical_band, otm_skew_points
 from options_monitor.charts.vol_skew_history import build_vol_skew_history_chart
-from options_monitor.data.vol_skew_cache import SkewCurveStore, skew_cache_path
+from options_monitor.data.sqlite_cache import cache_path
+from options_monitor.data.vol_skew_cache import SkewCurveStore
 from options_monitor.tabs.vol import skew_history
 
 
@@ -38,11 +39,11 @@ def test_historical_band_does_not_extrapolate_wings() -> None:
     assert counts.tolist() == [0, 3, 3, 3, 0]
 
 
-def test_skew_cache_is_separate_and_persistent(
+def test_skew_cache_uses_shared_database_and_persists(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
-    assert skew_cache_path() == tmp_path / "monitor" / "vol_skew.sqlite3"
+    assert cache_path() == tmp_path / "monitor" / "options_monitor_cache.sqlite3"
     source = tmp_path / "SPY.parquet"
     source.write_bytes(b"first source")
     sample_date = date(2026, 10, 16)
@@ -63,7 +64,7 @@ def test_historical_curves_reuse_sqlite(monkeypatch: pytest.MonkeyPatch, tmp_pat
     source.write_bytes(b"historical parquet")
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "monitor"))
     reader = MagicMock()
-    reader.get_parquet.return_value = source
+    reader.get_option_parquet.return_value = str(source)
     monkeypatch.setattr(skew_history, "get_reader", lambda: reader)
     frame = pd.DataFrame(
         {
@@ -81,8 +82,8 @@ def test_historical_curves_reuse_sqlite(monkeypatch: pytest.MonkeyPatch, tmp_pat
     second = skew_history._historical_curves("GLD", [sample_date])
     assert first == second
     assert len(first) == 1
-    reader.get_parquet.assert_called_once_with("GLD", sample_date)
-    archived.assert_called_once_with(source, sample_date)
+    reader.get_option_parquet.assert_called_once_with("GLD", sample_date)
+    archived.assert_called_once_with(str(source), sample_date)
 
 
 def test_latest_chain_prefers_current_intraday(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,7 +106,7 @@ def test_latest_chain_prefers_current_intraday(monkeypatch: pytest.MonkeyPatch) 
     )
     assert result.equals(frame)
     assert (sample_date, selected_expiry) == (today, expiry)
-    reader.get_parquet.assert_not_called()
+    reader.get_option_parquet.assert_not_called()
 
 
 def test_latest_chain_uses_quote_date_on_weekend(monkeypatch: pytest.MonkeyPatch) -> None:

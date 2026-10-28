@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 from tractatus.calc.gex import (
@@ -75,6 +76,42 @@ def _show_sample_caption(sampled_at: datetime, is_archive: bool = False) -> None
         sampled_at = sampled_at.replace(tzinfo=UTC)
     ts_ct = sampled_at.astimezone(_CHICAGO).strftime("%Y-%m-%d %H:%M:%S CT")
     st.caption(ts_ct)
+
+
+def _usable_gex_rows(options_df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """Keep contracts with Greeks and fields required by both GEX series."""
+    required = {"strike", "gamma", "volatility", "open_interest", "contract_type"}
+    if not required.issubset(options_df.columns):
+        st.warning(f"No valid {symbol} GEX contracts: required chain fields are missing.")
+        return options_df.iloc[0:0].copy()
+
+    rows = options_df.copy()
+    for column in ("strike", "gamma", "volatility", "open_interest"):
+        rows[column] = pd.to_numeric(rows[column], errors="coerce")
+    rows["contract_type"] = rows["contract_type"].astype("string").str.upper()
+    valid = (
+        np.isfinite(rows["strike"])
+        & (rows["strike"] > 0)
+        & np.isfinite(rows["gamma"])
+        & (rows["gamma"] >= 0)
+        & np.isfinite(rows["volatility"])
+        & (rows["volatility"] > 0)
+        & np.isfinite(rows["open_interest"])
+        & (rows["open_interest"] > 0)
+        & rows["contract_type"].isin(["CALL", "PUT"])
+    )
+    rows = pd.DataFrame(rows.loc[valid].copy())
+    if rows.empty:
+        st.warning(
+            f"No valid {symbol} GEX contracts in this sample. "
+            "Gamma must be nonnegative, implied volatility and open interest must be positive."
+        )
+    elif len(rows) < len(options_df):
+        st.warning(
+            f"GEX uses {len(rows):,} of {len(options_df):,} {symbol} contracts; "
+            "contracts with invalid Greeks or required fields were excluded."
+        )
+    return rows
 
 
 def _load_window_snapshot_data(
@@ -187,6 +224,9 @@ def _render_gex_view(
     all_opts, spot, strike_range, sampled_at, is_archive = loaded
     if sampled_at is not None:
         _show_sample_caption(sampled_at, is_archive)
+    all_opts = _usable_gex_rows(all_opts, symbol)
+    if all_opts.empty:
+        return
     anchor_ts = pd.Timestamp(today)
 
     strike_gex = net_gex_by_strike(all_opts, spot=spot, strike_range=strike_range)
@@ -353,6 +393,9 @@ def _render_gex_history_view(
 
     all_opts = pd.concat(frames, ignore_index=True)
     spot, strike_range = _compute_spot_and_strike_range(all_opts, range_pct)
+    all_opts = _usable_gex_rows(all_opts, symbol)
+    if all_opts.empty:
+        return
     strike_gex = net_gex_by_strike(all_opts, spot=spot, strike_range=strike_range)
     snap_time = pd.Timestamp(replay_time)
     if snap_time.tzinfo is not None:
@@ -394,18 +437,20 @@ def _render_chains_view(
     single_opts, spot, strike_range, sampled_at, is_archive = loaded
     if sampled_at is not None:
         _show_sample_caption(sampled_at, is_archive)
+    gex_opts = _usable_gex_rows(single_opts, symbol)
     rr_result = compute_risk_reversal(single_opts)
     if rr_result is not None:
         fig_rr = build_skew_indicators(rr_result, spot=spot)
         st.plotly_chart(fig_rr, use_container_width=True)
 
-    fig_single = build_gex_single_expiry_chart(
-        single_opts,
-        spot=spot,
-        strike_range=strike_range,
-        title=f"{symbol} GEX {selected_exp}",
-    )
-    st.plotly_chart(fig_single, use_container_width=True)
+    if not gex_opts.empty:
+        fig_single = build_gex_single_expiry_chart(
+            gex_opts,
+            spot=spot,
+            strike_range=strike_range,
+            title=f"{symbol} GEX {selected_exp}",
+        )
+        st.plotly_chart(fig_single, use_container_width=True)
 
     chain_view = st.segmented_control(
         "Chain chart",
@@ -535,6 +580,9 @@ def _render_history_view(
 
     single_opts = load_historical_snapshot(symbol, selected_exp, selected_ts, parquet_path)
     spot, strike_range = _compute_spot_and_strike_range(single_opts, range_pct)
+    single_opts = _usable_gex_rows(single_opts, symbol)
+    if single_opts.empty:
+        return
     fig_single = build_gex_single_expiry_chart(
         single_opts,
         spot=spot,
@@ -583,7 +631,10 @@ def _render_gamma_heatmap_view(
     all_opts, spot, strike_range, sampled_at, is_archive = loaded
     if sampled_at is not None:
         _show_sample_caption(sampled_at, is_archive)
-    gh_key = (symbol, round(spot), strike_range, gh_start, gh_end, len(all_opts))
+    all_opts = _usable_gex_rows(all_opts, symbol)
+    if all_opts.empty:
+        return
+    gh_key = (symbol, sampled_at, round(spot), strike_range, gh_start, gh_end, len(all_opts))
     with st.spinner("Computing GEX term structure..."):
         if st.session_state.get("_gh_key") != gh_key:
             if is_archive:

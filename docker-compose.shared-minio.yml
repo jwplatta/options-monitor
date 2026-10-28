@@ -11,15 +11,19 @@ services:
       - "${OPTIONS_MONITOR_CACHE_DIR:-$HOME/.cache/options-monitor}:/root/.cache/options-monitor"
       - "${HOME}/.aws:/root/.aws:ro"
       - "./src:/app/src:ro"
+      - "${TRACTATUS_SRC:-${HOME}/repos/tractatus/src}:/tractatus/src:ro"
     environment:
-      PYTHONPATH: /app/src
+      PYTHONPATH: /tractatus/src:/app/src
       TRACTATUS_CACHE_DIR: /root/.tractatus/cache
       OPTIONS_MONITOR_CACHE_DIR: /root/.cache/options-monitor
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
       MINIO_INTRADAY_BUCKET: "${MINIO_INTRADAY_BUCKET:-tickrake-intraday}"
-      MINIO_HISTORICAL_BUCKET: "${MINIO_HISTORICAL_BUCKET:-tickrake-historical}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      ICEBERG_CATALOG_TYPE: "${ICEBERG_CATALOG_TYPE:-sql}"
+      MINIO_ICEBERG_BUCKET: "${MINIO_ICEBERG_BUCKET:-tractatus-iceberg}"
+      ICEBERG_POSTGRES_URL: "${ICEBERG_POSTGRES_URL:-postgresql+psycopg2://tractatus_user:tractatus@host.docker.internal:5432/tractatus}"
+      GLUE_DATABASE: "${GLUE_DATABASE:-tractatus}"
       S3_BUCKET: "${S3_BUCKET:-}"
       S3_REGION: "${S3_REGION:-us-east-1}"
     extra_hosts:

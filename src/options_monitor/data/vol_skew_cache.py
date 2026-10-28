@@ -3,24 +3,19 @@
 from __future__ import annotations
 
 import json
-import os
-import sqlite3
 from datetime import date
 from pathlib import Path
+
+from options_monitor.data.sqlite_cache import connect_cache
 
 _CALC_VERSION = 1
 
 
-def skew_cache_path() -> Path:
-    root = Path(
-        os.environ.get("OPTIONS_MONITOR_CACHE_DIR") or "~/.cache/options-monitor"
-    ).expanduser()
-    return root / "vol_skew.sqlite3"
-
-
-def _stamp(path: Path) -> tuple[int, int] | None:
+def _stamp(path: Path | str) -> tuple[int, int] | None:
+    if isinstance(path, str) and path.startswith("s3://"):
+        return (0, 0)
     try:
-        stat = path.stat()
+        stat = Path(path).stat()
     except OSError:
         return None
     return stat.st_size, stat.st_mtime_ns
@@ -30,24 +25,7 @@ class SkewCurveStore:
     """One row per archived symbol/date/target DTE; rows never age out."""
 
     def __init__(self, path: Path | None = None) -> None:
-        db_path = path or skew_cache_path()
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path, timeout=30)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=30000")
-        self._conn.execute(
-            """CREATE TABLE IF NOT EXISTS skew_curves (
-                symbol TEXT NOT NULL,
-                sample_date TEXT NOT NULL,
-                target_dte INTEGER NOT NULL,
-                source_path TEXT NOT NULL,
-                source_size INTEGER NOT NULL,
-                source_mtime_ns INTEGER NOT NULL,
-                calc_version INTEGER NOT NULL,
-                points_json TEXT NOT NULL,
-                PRIMARY KEY (symbol, sample_date, target_dte)
-            )"""
-        )
+        self._conn = connect_cache(path)
 
     def __enter__(self) -> SkewCurveStore:
         return self
@@ -63,7 +41,7 @@ class SkewCurveStore:
                FROM skew_curves WHERE symbol=? AND sample_date=? AND target_dte=?""",
             (symbol, sample_date.isoformat(), target_dte),
         ).fetchone()
-        if row is None or row[3] != _CALC_VERSION or _stamp(Path(row[0])) != (row[1], row[2]):
+        if row is None or row[3] != _CALC_VERSION or _stamp(row[0]) != (row[1], row[2]):
             return None
         return [(float(m), float(iv)) for m, iv in json.loads(row[4])]
 
@@ -72,7 +50,7 @@ class SkewCurveStore:
         symbol: str,
         sample_date: date,
         target_dte: int,
-        source_path: Path,
+        source_path: Path | str,
         points: list[tuple[float, float]],
     ) -> None:
         stamp = _stamp(source_path)

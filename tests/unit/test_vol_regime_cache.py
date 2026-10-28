@@ -8,7 +8,8 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from options_monitor.data.vol_regime_cache import VolRegimeObservationStore, cache_path
+from options_monitor.data.sqlite_cache import cache_path
+from options_monitor.data.vol_regime_cache import VolRegimeObservationStore
 from options_monitor.tabs.vol import vol_regime
 
 
@@ -40,8 +41,7 @@ def test_cache_path_is_separate_from_tractatus(
 ) -> None:
     monkeypatch.setenv("TRACTATUS_CACHE_DIR", str(tmp_path / "tractatus"))
     monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path / "options-monitor"))
-    monkeypatch.delenv("VOL_REGIME_CACHE_PATH", raising=False)
-    assert cache_path() == tmp_path / "options-monitor" / "vol_regime.sqlite3"
+    assert cache_path() == tmp_path / "options-monitor" / "options_monitor_cache.sqlite3"
 
 
 def test_historical_series_reuses_persisted_observations(
@@ -49,9 +49,9 @@ def test_historical_series_reuses_persisted_observations(
 ) -> None:
     source = tmp_path / "GLD.parquet"
     source.write_bytes(b"immutable source")
-    monkeypatch.setenv("VOL_REGIME_CACHE_PATH", str(tmp_path / "cache.sqlite3"))
+    monkeypatch.setenv("OPTIONS_MONITOR_CACHE_DIR", str(tmp_path))
     reader = MagicMock()
-    reader.get_parquet.return_value = source
+    reader.get_option_parquet.return_value = str(source)
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     compute = MagicMock(return_value=[("snapshot", 25.0, -1.5)])
     monkeypatch.setattr(vol_regime, "_historical_observations", compute)
@@ -59,8 +59,8 @@ def test_historical_series_reuses_persisted_observations(
 
     assert vol_regime._historical_series("GLD", [sample_date], 30) == ([25.0], [-1.5])
     assert vol_regime._historical_series("GLD", [sample_date], 30) == ([25.0], [-1.5])
-    reader.get_parquet.assert_called_once_with("GLD", sample_date)
-    compute.assert_called_once_with(source, sample_date, 30)
+    reader.get_option_parquet.assert_called_once_with("GLD", sample_date)
+    compute.assert_called_once_with(str(source), sample_date, 30)
 
 
 def test_current_chain_is_loaded_again_on_each_calculation(
@@ -69,7 +69,7 @@ def test_current_chain_is_loaded_again_on_each_calculation(
     today = date.today()
     expiry = today + timedelta(days=30)
     reader = MagicMock()
-    reader.list_sample_dates.return_value = [today - timedelta(days=1)]
+    reader.list_option_sample_dates.return_value = [today - timedelta(days=1)]
     reader.latest_snapshots.return_value = {expiry: "s3://bucket/latest.csv"}
     reader.load_intraday_snapshot.side_effect = [
         pd.DataFrame(

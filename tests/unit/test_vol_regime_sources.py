@@ -33,7 +33,7 @@ def _fixture_parquet(tmp_path: Path) -> tuple[Path, date, date, pd.DatetimeIndex
 
 def test_available_dates_come_from_reader(monkeypatch) -> None:
     reader = MagicMock()
-    reader.list_sample_dates.return_value = [date(2026, 10, 13), date(2026, 10, 14)]
+    reader.list_option_sample_dates.return_value = [date(2026, 10, 13), date(2026, 10, 14)]
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     assert vol_regime._available_sample_dates("GLD", date(2026, 10, 14), date(2026, 10, 15)) == [
         date(2026, 10, 14)
@@ -43,7 +43,7 @@ def test_available_dates_come_from_reader(monkeypatch) -> None:
 def test_daily_history_uses_first_post_1030_and_last(monkeypatch, tmp_path: Path) -> None:
     path, sample_date, expiry, times = _fixture_parquet(tmp_path)
     reader = MagicMock()
-    reader.get_parquet.return_value = path
+    reader.get_option_parquet.return_value = str(path)
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     vol_regime._load_daily_snapshots_for_expiry.clear()
     frames = vol_regime._load_daily_snapshots_for_expiry("GLD", sample_date, expiry)
@@ -58,13 +58,13 @@ def test_daily_history_uses_first_post_1030_and_last(monkeypatch, tmp_path: Path
         "contract_type",
         "underlying_price",
     }
-    reader.get_parquet.assert_called_once_with("GLD", sample_date)
+    reader.get_option_parquet.assert_called_once_with("GLD", sample_date)
 
 
 def test_eod_snapshot_reads_vol_columns(monkeypatch, tmp_path: Path) -> None:
     path, sample_date, expiry, times = _fixture_parquet(tmp_path)
     reader = MagicMock()
-    reader.get_parquet.return_value = path
+    reader.get_option_parquet.return_value = str(path)
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     vol_regime._load_eod_snapshot_for_expiry.clear()
     frame = vol_regime._load_eod_snapshot_for_expiry("GLD", sample_date, expiry)
@@ -83,7 +83,7 @@ def test_eod_snapshot_reads_vol_columns(monkeypatch, tmp_path: Path) -> None:
 
 def test_daily_history_missing_parquet(monkeypatch) -> None:
     reader = MagicMock()
-    reader.get_parquet.return_value = None
+    reader.get_option_parquet.return_value = None
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     vol_regime._load_daily_snapshots_for_expiry.clear()
     assert (
@@ -94,7 +94,7 @@ def test_daily_history_missing_parquet(monkeypatch) -> None:
 
 def test_vol_regime_skips_bulk_cache_without_current_data(monkeypatch) -> None:
     reader = MagicMock()
-    reader.list_sample_dates.return_value = []
+    reader.list_option_sample_dates.return_value = []
     monkeypatch.setattr(vol_regime, "get_reader", lambda: reader)
     result = vol_regime._compute_vol_regime_data(("GLD",), 30, 60)
     assert result.empty

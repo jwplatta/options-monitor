@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import duckdb
@@ -12,7 +11,7 @@ import streamlit as st
 
 from options_monitor.calc.vol_skew_history import otm_skew_points
 from options_monitor.charts.vol_skew_history import build_vol_skew_history_chart
-from options_monitor.data.reader import get_reader
+from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 from options_monitor.data.vol_skew_cache import SkewCurveStore
 
 _TARGET_DTE = 30
@@ -27,9 +26,10 @@ def _closest_expiry(expirations: list[date], sample_date: date) -> date | None:
     return min(valid, key=lambda expiry: abs((expiry - sample_date).days - _TARGET_DTE))
 
 
-def _archived_snapshot(path: Path, sample_date: date) -> tuple[pd.DataFrame, date | None]:
+def _archived_snapshot(path: str, sample_date: date) -> tuple[pd.DataFrame, date | None]:
     """Read only the last option chain for the expiry nearest 30 DTE."""
     with duckdb.connect() as conn:
+        configure_duckdb_httpfs(conn)
         expirations = [
             date.fromisoformat(str(row[0])[:10])
             for row in conn.execute(
@@ -115,10 +115,11 @@ def _latest_chain(
     if not dates or dates[-1] < today - timedelta(days=3):
         return pd.DataFrame(), None, None
     sample_date = dates[-1]
-    path = reader.get_parquet(symbol, sample_date)
-    if path is None:
+    try:
+        path = reader.get_option_parquet(symbol, sample_date)
+    except FileNotFoundError:
         return pd.DataFrame(), None, None
-    frame, expiry = _archived_snapshot(Path(path), sample_date)
+    frame, expiry = _archived_snapshot(path, sample_date)
     return frame, sample_date, expiry
 
 
@@ -130,17 +131,17 @@ def _historical_curves(symbol: str, dates: list[date]) -> list[list[tuple[float,
         for sample_date in dates:
             points = store.get(symbol, sample_date, _TARGET_DTE)
             if points is None:
-                path = reader.get_parquet(symbol, sample_date)
-                if path is None:
-                    continue
-                source = Path(path)
                 try:
-                    frame, _ = _archived_snapshot(source, sample_date)
+                    path = reader.get_option_parquet(symbol, sample_date)
+                except FileNotFoundError:
+                    continue
+                try:
+                    frame, _ = _archived_snapshot(path, sample_date)
                 except (duckdb.Error, ValueError):
                     continue
                 spot = _spot(frame)
                 points = otm_skew_points(frame, spot) if spot is not None else []
-                store.put(symbol, sample_date, _TARGET_DTE, source, points)
+                store.put(symbol, sample_date, _TARGET_DTE, path, points)
             if len(points) >= 2:
                 curves.append(points)
     return curves
@@ -162,7 +163,7 @@ def render_skew_history_tab() -> None:
 
     today = datetime.now(_NEW_YORK).date()
     reader = get_reader()
-    dates = sorted(d for d in reader.list_sample_dates(symbol) if d <= today)
+    dates = sorted(d for d in reader.list_option_sample_dates(symbol) if d <= today)
     current, sample_date, expiry = _latest_chain(symbol, today, dates)
     spot = _spot(current)
     if current.empty or spot is None or sample_date is None or expiry is None:

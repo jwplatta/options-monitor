@@ -37,8 +37,14 @@ def test_quadrant_labels_show_trade_ideas_on_hover() -> None:
     tips = [annotation.hovertext for annotation in fig.layout.annotations if annotation.hovertext]
 
     assert len(tips) == 4
-    assert any("buying calls" in tip for tip in tips)
-    assert any("buying puts" in tip for tip in tips)
-    assert any("selling a call spread" in tip for tip in tips)
-    assert any("sell a put credit spread" in tip for tip in tips)
-    assert any("buy a put debit spread" in tip for tip in tips)
+    assert [tip.split("<br>")[0] for tip in tips] == [
+        "IV is low and calls are relatively rich while puts are relatively cheap.",
+        "IV is high and calls are relatively rich while puts are relatively cheap.",
+        "IV is low and puts are relatively rich while calls are relatively cheap.",
+        "IV is high and puts are relatively rich while calls are relatively cheap.",
+    ]
+    for tip in tips:
+        lines = tip.split("<br>")
+        assert len(lines) == 3
+        assert lines[1].startswith("Bullish: Consider ")
+        assert lines[2].startswith("Bearish: Consider ")
