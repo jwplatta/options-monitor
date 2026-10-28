@@ -40,6 +40,7 @@ from options_monitor.data.options import (
     load_options_snapshot,
     parquet_path_for_date,
 )
+from options_monitor.data.symbol_selector import symbol_selector
 
 _CHICAGO = ZoneInfo("America/Chicago")
 _GEX_VIEWS = [
@@ -714,7 +715,7 @@ def render_gex_tab() -> None:
 
         with col_ctrl:
             include_0dte = st.toggle("Include 0DTE", value=True, key="gm_0dte")
-            symbol = str(st.session_state.get("global_symbol", "SPXW"))
+            symbol = symbol_selector("gex")
             range_pct = float(
                 st.slider(
                     "Strike range (% of spot)",

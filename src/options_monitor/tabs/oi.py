@@ -20,6 +20,7 @@ from options_monitor.data.options import (
     load_latest_historical_sample_per_date,
     load_options_snapshot,
 )
+from options_monitor.data.symbol_selector import symbol_selector
 
 _CHICAGO = ZoneInfo("America/Chicago")
 _OI_HISTORICAL_COLUMNS = [
@@ -65,7 +66,7 @@ def _load_oi_historical_frames(
 
 def render_oi_tab() -> None:
     """Render the Open Interest z-score tab."""
-    symbol = str(st.session_state.get("global_symbol", "SPXW"))
+    symbol = symbol_selector("oi")
     c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1, 1, 1])
     with c1:
         oi_days_out = int(

@@ -6,6 +6,7 @@ from datetime import date
 
 import streamlit as st
 
+from options_monitor.data.symbol_selector import symbol_selector
 from options_monitor.tabs.gex import (
     _render_gex_history_view,
     _render_history_view,
@@ -47,7 +48,7 @@ def render_history_tab() -> None:
 
         with col_ctrl:
             include_0dte = st.toggle("Include 0DTE", value=True, key="gm_0dte")
-            symbol = str(st.session_state.get("global_symbol", "SPXW"))
+            symbol = symbol_selector("history")
             range_pct = float(
                 st.slider(
                     "Strike range (% of spot)",
