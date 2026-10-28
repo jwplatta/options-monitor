@@ -74,7 +74,7 @@ def render_spx_rv_tab() -> None:
     start_trim_rv = pd.Timestamp(start_rv, tz="UTC")
     if str(freq_rv) in {"1min", "5min", "30min"}:
         mask = spx_rv["datetime"] >= start_trim_rv
-        display_start = int(mask.idxmax()) if mask.any() else 0
+        display_start = int(mask.idxmax()) if mask.any() else 0  # type: ignore[call-overload]
         rv_fig.update_xaxes(range=[display_start - 0.5, len(spx_rv) - 0.5])
     else:
         rv_fig.update_xaxes(

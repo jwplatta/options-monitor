@@ -68,7 +68,7 @@ def compute_atm_iv(snapshot: pd.DataFrame, spot: float) -> float | None:
 
     df["contract_type"] = df["contract_type"].str.upper()
     df["dist"] = (df["strike"] - spot).abs()
-    nearest_strike = df.loc[df["dist"].idxmin(), "strike"]
+    nearest_strike = df.loc[df["dist"].idxmin(), "strike"]  # type: ignore[index]
 
     atm = df[df["strike"] == nearest_strike]
     call_iv = atm.loc[atm["contract_type"] == "CALL", "volatility"]
