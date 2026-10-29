@@ -6,6 +6,9 @@ import os
 import sqlite3
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
+
+_INITIALIZE_LOCK = Lock()
 
 # Edit these definitions directly. A differing cache schema is rebuilt on open.
 _SCHEMA: tuple[str, ...] = (
@@ -138,13 +141,16 @@ def connect_cache(path: Path | None = None) -> sqlite3.Connection:
     """Open a cache using the current schema, rebuilding incompatible contents."""
     db_path = path or cache_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=30)
-    try:
-        conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        _initialize(conn)
-    except Exception:
-        conn.close()
-        raise
+    # SQLite journal-mode setup can fail immediately if sibling threads initialize
+    # a new file simultaneously, before its normal busy handling takes effect.
+    with _INITIALIZE_LOCK:
+        conn = sqlite3.connect(db_path, timeout=30)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA journal_mode=WAL")
+            _initialize(conn)
+        except Exception:
+            conn.close()
+            raise
     return conn

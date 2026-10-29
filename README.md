@@ -147,3 +147,8 @@ the app and discard its cache database (including SQLite WAL/SHM files) before
 restarting to recompute results. Source-object revision changes still trigger
 automatic refreshes. Skew and Fixed Strike retain their existing implementation
 until their separate cache updates.
+
+After changing cache schemas or worker code during development, restart the dev
+container: Streamlit hot reload can leave existing background threads executing
+older code. Initial root discovery refreshes the dropdowns automatically when
+its metadata job completes.

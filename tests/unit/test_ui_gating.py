@@ -463,3 +463,20 @@ def test_cache_settings_router_does_not_render_charts(monkeypatch) -> None:
     app._render_active_dashboard_tab("Cache Settings")
     assert calls == ["settings"]
     assert "Cache Settings" in app._TOP_LEVEL_TABS
+
+
+def test_roots_ready_triggers_full_rerun_to_refresh_dropdowns(monkeypatch):
+    calls = []
+    monkeypatch.setattr(app, "available_roots", lambda: (["QQQ", "SPY"], True))
+    monkeypatch.setattr(app.st, "rerun", lambda **kwargs: calls.append(kwargs))
+    app._wait_for_roots.__wrapped__()
+    assert calls == [{"scope": "app"}]
+
+
+def test_pending_roots_do_not_rerun_entire_app(monkeypatch):
+    calls = []
+    monkeypatch.setattr(app, "available_roots", lambda: (["SPXW"], False))
+    monkeypatch.setattr(app.st, "caption", lambda *args: None)
+    monkeypatch.setattr(app.st, "rerun", lambda **kwargs: calls.append(kwargs))
+    app._wait_for_roots.__wrapped__()
+    assert calls == []

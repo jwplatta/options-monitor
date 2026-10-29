@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from options_monitor.data.roots import available_roots
 from options_monitor.tabs.cache_settings import render_cache_settings_page
 from options_monitor.tabs.flow import render_flow_tab
 from options_monitor.tabs.gex import render_gex_tab
@@ -44,6 +45,16 @@ def _render_active_dashboard_tab(active_tab: str) -> None:
     raise ValueError(f"Unknown dashboard tab: {active_tab}")
 
 
+@st.fragment(run_every="2s")
+def _wait_for_roots() -> None:
+    """Refresh initial dropdown options once asynchronous metadata is available."""
+    _, loaded = available_roots()
+    if loaded:
+        st.rerun(scope="app")
+    else:
+        st.caption("Loading available symbols…")
+
+
 def render_dashboard() -> None:
     """Render the main Options Monitor dashboard."""
     st.set_page_config(
@@ -63,6 +74,8 @@ def render_dashboard() -> None:
                 label_visibility="collapsed",
             )
         )
+    if not available_roots()[1]:
+        _wait_for_roots()
     with st.spinner(_TAB_SPINNER_MSG.get(active_tab, "Loading...")):
         _render_active_dashboard_tab(active_tab)
 

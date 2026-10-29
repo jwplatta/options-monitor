@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Refresh initial chart and warmup dropdowns when asynchronous root discovery completes.
 - Added frozen real SPXW chain regression tests for ATM IV, interpolated 25-delta call/put IVs, risk reversal, SQLite persistence, and historical percentiles without current-day leakage.
 - Removed manual calculation-version tracking from Vol Regime and shared cache jobs; formula changes require discarding the disposable cache. Remote source revision validation remains.
 - Replaced SQLite schema versions and migration history with current definitions; incompatible disposable caches are rebuilt automatically, including saved settings.
