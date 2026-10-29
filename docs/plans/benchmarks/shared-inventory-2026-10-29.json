@@ -1,0 +1,29 @@
+{
+  "symbols": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "INTC",
+    "MRVL"
+  ],
+  "calendar_days": 60,
+  "sources": {
+    "SPY": 31,
+    "QQQ": 31,
+    "IWM": 31,
+    "INTC": 31,
+    "MRVL": 31
+  },
+  "baseline_per_root_s": {
+    "SPY": 6.186098211997887,
+    "QQQ": 1.8858125429978827,
+    "IWM": 1.3143666260002647,
+    "INTC": 1.441756208994775,
+    "MRVL": 1.7258835419925163
+  },
+  "baseline_total_s": 12.553917131983326,
+  "shared_initial_s": 3.9495144190004794,
+  "shared_reuse_all_roots_s": 0.004492332998779602,
+  "initial_speedup": 3.178597619896878,
+  "equal_sources": true
+}

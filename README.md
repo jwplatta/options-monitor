@@ -185,3 +185,17 @@ the bucket or read another repo at runtime.
 The supported-root registry is separate from the shared warmup list. Configuring
 a root makes it selectable; only roots selected in the warmup list run recurring
 historical jobs. A reset clears user settings but repopulates configured roots.
+
+### Shared historical file inventory
+
+Vol Regime uses Tractatus's multi-root discovery API to discover source files for
+its warmup list and queued symbols together. The inventory is stored in
+`cache_sources`; `cache_source_scans` records each root's successfully checked date
+range and refresh time, including roots with no files. Symbol and DTE jobs reuse
+this inventory for fifteen minutes. New roots, wider ranges, a new calendar day,
+or expiry of that interval trigger discovery for missing/stale coverage.
+Discovery failures preserve the previous inventory. Observation retention cleanup
+does not delete this shared inventory; the next successful scan replaces its range.
+
+Settings displays every configured option root with its underlying and asset class
+in a read-only table. These are YAML-configured roots, not a live bucket listing.

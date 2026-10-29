@@ -3,7 +3,7 @@
 import streamlit as st
 
 from options_monitor.data.cache_settings_ui import render_cache_settings
-from options_monitor.data.roots import available_roots
+from options_monitor.data.roots import available_root_details, available_roots
 from options_monitor.data.vol_regime_jobs import runtime
 
 
@@ -17,6 +17,9 @@ def render_settings_page() -> None:
         "src/options_monitor/config/option_roots.yaml. Edit that file and restart "
         "the app to update the registry."
     )
+    details = available_root_details()
+    st.caption(f"{len(details)} configured option roots")
+    st.dataframe(details, hide_index=True, width="stretch", height=360)
     roots, _ = available_roots()
     st.markdown("### Shared warmup list")
     st.caption(

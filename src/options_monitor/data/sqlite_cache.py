@@ -43,6 +43,11 @@ _SCHEMA: tuple[str, ...] = (
             namespace_id TEXT NOT NULL, root TEXT NOT NULL, sample_date TEXT NOT NULL,
             uri TEXT NOT NULL, revision TEXT NOT NULL, size_bytes INTEGER NOT NULL,
             checked_at TEXT NOT NULL, PRIMARY KEY(namespace_id, root, sample_date))""",
+    """CREATE TABLE cache_source_scans (
+            namespace_id TEXT NOT NULL, root TEXT NOT NULL,
+            after_date TEXT NOT NULL, before_date TEXT NOT NULL,
+            refreshed_at TEXT NOT NULL,
+            PRIMARY KEY(namespace_id, root))""",
     """CREATE TABLE cache_job_state (
             job_id TEXT NOT NULL, namespace_id TEXT NOT NULL, root TEXT NOT NULL,
             params_json TEXT NOT NULL,

@@ -79,7 +79,7 @@ def test_vol_job_revision_reuse_empty_days_and_remote_free_ranges(tmp_path, monk
         sample_date=day, uri="s3://lake/file.parquet", revision="v1:100", size_bytes=100
     )
     reader = MagicMock()
-    reader.list_option_sources.return_value = [source]
+    reader.discover_option_sources.return_value = {"SPY": [source]}
     reader.query_connection.side_effect = lambda: nullcontext(object())
     reader.option_daily_snapshots.return_value = pd.DataFrame(
         {
@@ -114,8 +114,10 @@ def test_vol_job_revision_reuse_empty_days_and_remote_free_ranges(tmp_path, monk
         [20.0, 25.0],
         [1.0, 1.0],
     )
-    reader.list_option_sources.assert_not_called()
+    reader.discover_option_sources.assert_not_called()
     reader.option_daily_snapshots.assert_not_called()
+    with jobs.connection() as db:
+        db.execute("UPDATE cache_source_scans SET refreshed_at='2000-01-01T00:00:00+00:00'")
     source.revision = "v2:100"
     reader.option_daily_snapshots.return_value = pd.DataFrame(columns=["sampled_at"])
     compute("SPY", {"target_dte": 30})

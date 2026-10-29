@@ -126,9 +126,5 @@ class VolRegimeObservationStore:
                 "DELETE FROM vol_regime_days WHERE namespace_id=? AND sample_date<?",
                 (self.namespace, cutoff.isoformat()),
             )
-            self._conn.execute(
-                "DELETE FROM cache_sources WHERE namespace_id=? AND sample_date<?",
-                (self.namespace, cutoff.isoformat()),
-            )
             for (root,) in roots:
                 self._increment(root)

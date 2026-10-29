@@ -53,6 +53,7 @@ class CacheJobs:
         self, endpoint: str, bucket: str, provider: str = "schwab", path: Path | None = None
     ) -> None:
         self.path = path or cache_path()
+        self.provider = provider
         self.namespace = source_namespace(endpoint, bucket, provider)
         self.definitions: dict[str, JobDefinition] = {}
         self._stop = threading.Event()

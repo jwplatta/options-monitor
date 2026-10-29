@@ -13,7 +13,8 @@ from tractatus.calc.vol import compute_risk_reversal
 from tractatus.reader import CacheReader, ReaderConfig
 
 from options_monitor.calc.vol_regime import compute_atm_iv
-from options_monitor.data.cache_jobs import CacheJobs, JobDefinition, market_today, now_utc
+from options_monitor.data.cache_jobs import CacheJobs, JobDefinition, market_today
+from options_monitor.data.source_inventory import SourceInventory
 from options_monitor.data.vol_regime_cache import VolRegimeObservationStore
 
 _runtime: CacheJobs | None = None
@@ -36,7 +37,20 @@ def register_vol_regime(jobs: CacheJobs) -> None:
     def compute(root: str, params: dict[str, Any]) -> None:
         reader = CacheReader()
         cutoff = market_today() - timedelta(days=jobs.retention("vol_regime"))
-        sources = reader.list_option_sources(root, cutoff, market_today() - timedelta(days=1))
+        with jobs.connection() as db:
+            pending = [
+                row[0]
+                for row in db.execute(
+                    "SELECT DISTINCT root FROM cache_job_state WHERE namespace_id=? "
+                    "AND job_id='vol_regime' AND status IN ('queued','running')",
+                    (jobs.namespace,),
+                )
+            ]
+        roots = sorted(set([root, *jobs.targets("vol_regime"), *pending]))
+        inventory = SourceInventory(jobs).get(
+            reader, roots, cutoff, market_today() - timedelta(days=1)
+        )
+        sources = inventory[root]
         with VolRegimeObservationStore(jobs.path, jobs.namespace) as store:
             revisions = store.revisions(root, params["target_dte"])
             with reader.query_connection() as conn:
@@ -61,26 +75,8 @@ def register_vol_regime(jobs: CacheJobs) -> None:
                         observations,
                         expiry,
                     )
-        # Only a completely successful inventory/compute publishes the new date list.
+        # Reconcile metric days only after their calculations complete successfully.
         with jobs.connection() as db:
-            db.execute(
-                "DELETE FROM cache_sources WHERE namespace_id=? AND root=?", (jobs.namespace, root)
-            )
-            db.executemany(
-                "INSERT INTO cache_sources VALUES (?,?,?,?,?,?,?)",
-                [
-                    (
-                        jobs.namespace,
-                        root,
-                        s.sample_date.isoformat(),
-                        s.uri,
-                        s.revision,
-                        s.size_bytes,
-                        now_utc(),
-                    )
-                    for s in sources
-                ],
-            )
             days = {source.sample_date.isoformat() for source in sources}
             obsolete = db.execute(
                 "SELECT DISTINCT sample_date FROM vol_regime_days WHERE namespace_id=? AND root=?",

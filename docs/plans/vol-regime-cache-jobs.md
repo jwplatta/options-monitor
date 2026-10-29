@@ -87,3 +87,27 @@ Repeat with a new isolated directory:
 python scripts/profile_vol_regime.py --symbols SPXW TSLA --days 60 --repeats 2 \
   --cache-dir /tmp/vol-regime-profile-fresh --output /tmp/vol-regime-profile.json
 ```
+
+## Shared multi-root inventory implementation
+
+Pinned merged Tractatus PR #41 (`4a9229103462036f747514163fdd0a36cc5eb62a`).
+`SourceInventory` batches warmup and queued roots through discover_option_sources.
+`cache_source_scans(namespace_id,root,after_date,before_date,refreshed_at)` tracks
+successful range coverage, including empty roots; primary key namespace/root.
+Descriptors remain in cache_sources. Other symbols/DTEs reuse the persisted
+inventory until it is fifteen minutes old or lacks the requested date coverage.
+Failed discovery does not replace prior rows. Per-chart observation cleanup no
+longer deletes the shared file inventory.
+
+Live 60-calendar-day discovery-only comparison for SPY, QQQ, IWM, INTC, MRVL:
+31 sources per root, 155 sources total, identical source descriptors in both paths.
+Separate per-root discovery: **12.554 s**; shared initial discovery plus SQLite
+persistence: **3.950 s**, a **3.18×** speedup. Five subsequent per-root cached
+lookups: **0.00449 s total**. This single paired run did not clear MinIO/OS caches
+and does not establish end-to-end warmup speedup. Chain selection/calculation was
+unchanged. Raw results: `benchmarks/shared-inventory-2026-10-29.json`;
+repeatable script: `scripts/benchmark_source_inventory.py`.
+
+Settings now displays all configured root/underlying/asset-class mappings in a
+read-only table. A Streamlit rendering test checks the full row count and index
+underlying mappings.

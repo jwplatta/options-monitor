@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Reuse a persistent, range-aware multi-root historical file inventory across Vol Regime symbol/DTE jobs, using merged Tractatus PR #41.
+- Added a read-only table of all configured option roots, underlyings, and asset classes to Settings.
 - Reconciled the root YAML with all 144 historical lakehouse roots, adding 57 entries and explicit index-underlying mappings, including NDX/NDXP → $NDX and XSP → $XSP.
 - Renamed Cache Settings to Settings. Supported roots and underlying mappings now come from committed YAML, which seeds an indexed `option_roots` table on database creation/reset and syncs on restart; removed remote root discovery.
 - Added frozen real SPXW chain regression tests for ATM IV, interpolated 25-delta call/put IVs, risk reversal, SQLite persistence, and historical percentiles without current-day leakage.

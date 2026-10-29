@@ -100,4 +100,4 @@ module = ["plotly.*", "scipy.*", "tractatus.*"]
 ignore_missing_imports = true
 
 [tool.uv.sources]
-tractatus = { git = "https://github.com/jwplatta/tractatus.git", rev = "975cc2859f41d4b5fba3738324a325ddaa777ac5" }
+tractatus = { git = "https://github.com/jwplatta/tractatus.git", rev = "4a9229103462036f747514163fdd0a36cc5eb62a" }
