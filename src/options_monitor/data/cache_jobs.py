@@ -38,7 +38,6 @@ def canonical(params: dict[str, Any]) -> str:
 @dataclass(frozen=True)
 class JobDefinition:
     job_id: str
-    version: int
     defaults: dict[str, Any]
     validate: Callable[[dict[str, Any]], dict[str, Any]]
     compute: Callable[[str, dict[str, Any]], None]
@@ -151,7 +150,7 @@ class CacheJobs:
         now = now_utc()
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT status,completed_at,next_attempt_at,calc_version "
+                "SELECT status,completed_at,next_attempt_at "
                 "FROM cache_job_state WHERE job_id=? AND namespace_id=? "
                 "AND root=? AND params_json=?",
                 key,
@@ -170,21 +169,16 @@ class CacheJobs:
                 cutoff = (
                     datetime.now(UTC) - timedelta(seconds=definition.refresh_seconds)
                 ).isoformat()
-                if (
-                    row[0] == "ready"
-                    and row[1]
-                    and row[1] > cutoff
-                    and row[3] == definition.version
-                ):
+                if row[0] == "ready" and row[1] and row[1] > cutoff:
                     return
             conn.execute(
                 "INSERT INTO cache_job_state "
-                "(job_id,namespace_id,root,params_json,calc_version,status,requested_at,"
-                "last_accessed_at,priority) VALUES (?,?,?,?,?,'queued',?,?,?) "
+                "(job_id,namespace_id,root,params_json,status,requested_at,"
+                "last_accessed_at,priority) VALUES (?,?,?,?,'queued',?,?,?) "
                 "ON CONFLICT(job_id,namespace_id,root,params_json) DO UPDATE SET "
                 "status='queued',requested_at=excluded.requested_at,"
-                "calc_version=excluded.calc_version,priority=excluded.priority",
-                (*key, definition.version, now, now, int(warmup)),
+                "priority=excluded.priority",
+                (*key, now, now, int(warmup)),
             )
 
     def state(self, job_id: str, root: str, params: dict[str, Any]) -> dict[str, Any]:

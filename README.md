@@ -140,3 +140,10 @@ including saved settings. There are no schema versions or migration history.
 daily retention cleanup. It defaults to `America/Chicago` (Central Time, including
 daylight saving changes). Set it to another IANA timezone to override it. Persisted
 job timestamps remain UTC; historical chain sampling remains at 10:30 New York time.
+
+Vol Regime and the shared job framework do not track calculation versions. When
+changing metric formulas or snapshot selection without changing the schema, stop
+the app and discard its cache database (including SQLite WAL/SHM files) before
+restarting to recompute results. Source-object revision changes still trigger
+automatic refreshes. Skew and Fixed Strike retain their existing implementation
+until their separate cache updates.

@@ -40,7 +40,7 @@ _SCHEMA: tuple[str, ...] = (
             checked_at TEXT NOT NULL, PRIMARY KEY(namespace_id, root, sample_date))""",
     """CREATE TABLE cache_job_state (
             job_id TEXT NOT NULL, namespace_id TEXT NOT NULL, root TEXT NOT NULL,
-            params_json TEXT NOT NULL, calc_version INTEGER NOT NULL,
+            params_json TEXT NOT NULL,
             status TEXT NOT NULL CHECK(status IN ('queued','running','ready','failed')),
             requested_at TEXT, started_at TEXT, completed_at TEXT, last_accessed_at TEXT,
             priority INTEGER NOT NULL DEFAULT 1,
@@ -62,7 +62,7 @@ _SCHEMA: tuple[str, ...] = (
             generation INTEGER NOT NULL, PRIMARY KEY(namespace_id, job_id, root))""",
     """CREATE TABLE vol_regime_days (
             namespace_id TEXT NOT NULL, root TEXT NOT NULL, sample_date TEXT NOT NULL,
-            target_dte INTEGER NOT NULL, calc_version INTEGER NOT NULL,
+            target_dte INTEGER NOT NULL,
             source_revision TEXT NOT NULL, selected_expiry TEXT, computed_at TEXT NOT NULL,
             outcome TEXT NOT NULL CHECK(outcome IN ('ready','no_valid_observations')),
             PRIMARY KEY(namespace_id, root, sample_date, target_dte))""",

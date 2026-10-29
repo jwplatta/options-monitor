@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Removed manual calculation-version tracking from Vol Regime and shared cache jobs; formula changes require discarding the disposable cache. Remote source revision validation remains.
 - Replaced SQLite schema versions and migration history with current definitions; incompatible disposable caches are rebuilt automatically, including saved settings.
 - Cache Settings now has a shared warmup-list section for all chart jobs, initially empty; SPXW is no longer automatically warmed. Chart parameters remain separate.
 - Moved per-root Vol Regime cache status, verification time, and refresh errors into its Data Table, including selected roots whose chart points are not ready.

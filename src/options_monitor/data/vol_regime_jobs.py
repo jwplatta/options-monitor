@@ -15,7 +15,7 @@ from tractatus.reader import CacheReader, ReaderConfig
 
 from options_monitor.calc.vol_regime import compute_atm_iv
 from options_monitor.data.cache_jobs import CacheJobs, JobDefinition, market_today, now_utc
-from options_monitor.data.vol_regime_cache import CALC_VERSION, VolRegimeObservationStore
+from options_monitor.data.vol_regime_cache import VolRegimeObservationStore
 
 _runtime: CacheJobs | None = None
 _runtime_lock = threading.Lock()
@@ -102,9 +102,7 @@ def register_vol_regime(jobs: CacheJobs) -> None:
                 )
         distributions.cache_clear()
 
-    jobs.register(
-        JobDefinition("vol_regime", CALC_VERSION, {"target_dte": 30}, validate, compute, cleanup)
-    )
+    jobs.register(JobDefinition("vol_regime", {"target_dte": 30}, validate, compute, cleanup))
 
 
 def runtime() -> CacheJobs:
@@ -176,7 +174,6 @@ def register_roots(jobs: CacheJobs) -> None:
     jobs.register(
         JobDefinition(
             "option_roots",
-            1,
             {},
             lambda p: {},
             compute,

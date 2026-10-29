@@ -59,3 +59,5 @@ Final checks before PR: Options Monitor `make check` passed (149 unit tests, Ruf
 Cache controls are now on the dedicated **Cache Settings** sidebar page, initially with a Vol Regime section. Additional chart sections can be added there in later PRs.
 
 Schema maintenance update: current DDL only, no schema versions or migration chain. On open, incompatible table/index definitions cause an atomic cache rebuild, including stored settings. Matching schemas preserve contents. Obsolete tables are not part of the current definitions.
+
+Calculation-version update: Vol Regime and shared jobs no longer carry manual version constants or columns. Remote revision changes still invalidate observations. Formula/sampling changes require stopping the app and discarding its cache before recomputing, even if the SQLite schema is unchanged.

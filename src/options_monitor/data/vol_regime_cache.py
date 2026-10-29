@@ -10,7 +10,6 @@ from pathlib import Path
 from options_monitor.data.cache_jobs import now_utc
 from options_monitor.data.sqlite_cache import connect_cache
 
-CALC_VERSION = 2
 Observation = tuple[str, float | None, float | None]
 
 
@@ -31,8 +30,8 @@ class VolRegimeObservationStore:
         return dict(
             self._conn.execute(
                 "SELECT sample_date,source_revision FROM vol_regime_days WHERE namespace_id=? "
-                "AND root=? AND target_dte=? AND calc_version=?",
-                (self.namespace, root, target_dte, CALC_VERSION),
+                "AND root=? AND target_dte=?",
+                (self.namespace, root, target_dte),
             ).fetchall()
         )
 
@@ -59,9 +58,9 @@ class VolRegimeObservationStore:
             "SELECT o.atm_iv,o.risk_reversal,o.sample_date FROM vol_regime_observations o "
             "JOIN vol_regime_days d USING(namespace_id,root,sample_date,target_dte) "
             "WHERE o.namespace_id=? AND o.root=? AND o.target_dte=? "
-            "AND o.sample_date>=? AND o.sample_date<? AND d.calc_version=? "
+            "AND o.sample_date>=? AND o.sample_date<? "
             "ORDER BY o.sample_date,o.sampled_at",
-            (self.namespace, root, target_dte, after.isoformat(), before.isoformat(), CALC_VERSION),
+            (self.namespace, root, target_dte, after.isoformat(), before.isoformat()),
         ).fetchall()
         ivs = [float(r[0]) for r in rows if r[0] is not None and math.isfinite(r[0])]
         rrs = [float(r[1]) for r in rows if r[1] is not None and math.isfinite(r[1])]
@@ -102,10 +101,9 @@ class VolRegimeObservationStore:
                 key,
             )
             self._conn.execute(
-                "INSERT INTO vol_regime_days VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO vol_regime_days VALUES (?,?,?,?,?,?,?,?)",
                 (
                     *key,
-                    CALC_VERSION,
                     revision,
                     expiry,
                     now_utc(),

@@ -22,7 +22,7 @@ def test_requests_deduplicate_and_prioritize_users_and_persist_settings(tmp_path
     computed = []
     jobs.register(
         JobDefinition(
-            "demo", 1, {}, lambda p: p, lambda root, p: computed.append(root), lambda cutoff: None
+            "demo", {}, lambda p: p, lambda root, p: computed.append(root), lambda cutoff: None
         )
     )
     jobs.set_targets("demo", ["SPXW"], {})
@@ -43,7 +43,7 @@ def test_requests_deduplicate_and_prioritize_users_and_persist_settings(tmp_path
 def test_failure_keeps_retry_backoff_and_restart_recovers_running(tmp_path):
     jobs = jobs_at(tmp_path)
     compute = MagicMock(side_effect=RuntimeError("unavailable"))
-    jobs.register(JobDefinition("demo", 1, {}, lambda p: p, compute, lambda cutoff: None))
+    jobs.register(JobDefinition("demo", {}, lambda p: p, compute, lambda cutoff: None))
     jobs.set_targets("demo", [], {})
     jobs.request("demo", "SPY", {})
     jobs.tick()
@@ -64,7 +64,7 @@ def test_cleanup_once_daily_and_retention_cutoff(tmp_path, monkeypatch):
     cleanups = []
     jobs.register(
         JobDefinition(
-            "demo", 1, {}, lambda p: p, lambda r, p: None, cleanups.append, warmup_enabled=False
+            "demo", {}, lambda p: p, lambda r, p: None, cleanups.append, warmup_enabled=False
         )
     )
     jobs.tick()
@@ -174,7 +174,7 @@ def test_invalid_timezone_fails_clearly(monkeypatch):
 def test_unconfigured_jobs_do_not_automatically_warm_any_symbols(tmp_path):
     jobs = jobs_at(tmp_path)
     compute = MagicMock()
-    jobs.register(JobDefinition("demo", 1, {}, lambda p: p, compute, lambda cutoff: None))
+    jobs.register(JobDefinition("demo", {}, lambda p: p, compute, lambda cutoff: None))
     assert not jobs.tick()
     assert jobs.targets("demo") == []
     compute.assert_not_called()
@@ -187,7 +187,6 @@ def test_shared_warmup_list_applies_to_all_chart_jobs(tmp_path):
         jobs.register(
             JobDefinition(
                 job_id,
-                1,
                 {},
                 lambda p: p,
                 lambda root, p, job=job_id: calls.append((job, root)),
@@ -209,7 +208,7 @@ def test_removing_warmup_list_cancels_pending_warmups_but_keeps_user_requests(tm
     calls = []
     jobs.register(
         JobDefinition(
-            "demo", 1, {}, lambda p: p, lambda root, p: calls.append(root), lambda cutoff: None
+            "demo", {}, lambda p: p, lambda root, p: calls.append(root), lambda cutoff: None
         )
     )
     jobs.set_shared_targets(["SPXW"])
