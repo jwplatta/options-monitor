@@ -15,6 +15,7 @@ dependencies = [
     "duckdb>=1.5.4",
     "pytz>=2026.2",
     "tractatus",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]
@@ -40,6 +41,7 @@ dev = [
     "playwright>=1.44",
     "requests>=2.32",
     "ruff>=0.11.0",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.ruff]

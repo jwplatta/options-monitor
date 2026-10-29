@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
@@ -16,6 +15,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from options_monitor.data.option_root_config import seed_option_roots, source_namespace
 from options_monitor.data.sqlite_cache import cache_path, connect_cache
 
 log = logging.getLogger(__name__)
@@ -53,15 +53,7 @@ class CacheJobs:
         self, endpoint: str, bucket: str, provider: str = "schwab", path: Path | None = None
     ) -> None:
         self.path = path or cache_path()
-        self.namespace = hashlib.sha256(
-            canonical(
-                {
-                    "endpoint": endpoint.rstrip("/"),
-                    "bucket": bucket,
-                    "provider": provider,
-                }
-            ).encode()
-        ).hexdigest()[:24]
+        self.namespace = source_namespace(endpoint, bucket, provider)
         self.definitions: dict[str, JobDefinition] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -71,6 +63,7 @@ class CacheJobs:
                 "INSERT OR IGNORE INTO cache_namespaces VALUES (?,?,?,?)",
                 (self.namespace, endpoint.rstrip("/"), bucket, provider),
             )
+            seed_option_roots(conn, self.namespace)
             conn.execute(
                 "UPDATE cache_job_state SET status='queued' WHERE namespace_id=? "
                 "AND status IN ('running','queued')",
@@ -143,7 +136,13 @@ class CacheJobs:
         self.set_shared_targets(roots)
         self.set_setting(f"{job_id}:warmup_params", payload)
 
-    def request(self, job_id: str, root: str, params: dict[str, Any], warmup: bool = False) -> None:
+    def request(
+        self,
+        job_id: str,
+        root: str,
+        params: dict[str, Any],
+        warmup: bool = False,
+    ) -> None:
         definition = self.definitions[job_id]
         payload = canonical(definition.validate(params))
         key = (job_id, self.namespace, root, payload)

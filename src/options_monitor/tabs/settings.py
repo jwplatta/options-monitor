@@ -7,13 +7,17 @@ from options_monitor.data.roots import available_roots
 from options_monitor.data.vol_regime_jobs import runtime
 
 
-def render_cache_settings_page() -> None:
-    st.subheader("Cache Settings")
+def render_settings_page() -> None:
+    st.subheader("Settings")
     st.caption("Settings are saved across sessions and apply to all dashboard users.")
-    roots, loaded = available_roots()
-    if not loaded:
-        st.caption("Loading available symbols… Saved warmup symbols are still available.")
     jobs = runtime()
+    st.markdown("### Option roots")
+    st.caption(
+        "Supported roots and underlying symbols are configured in "
+        "src/options_monitor/config/option_roots.yaml. Edit that file and restart "
+        "the app to update the registry."
+    )
+    roots, _ = available_roots()
     st.markdown("### Shared warmup list")
     st.caption(
         "These symbols are warmed for every chart with a registered cache job. "

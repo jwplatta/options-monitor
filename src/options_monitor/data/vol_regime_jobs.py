@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import json
 import threading
 from datetime import date, timedelta
 from functools import lru_cache
@@ -112,8 +111,6 @@ def runtime() -> CacheJobs:
             cfg = ReaderConfig.load()
             _runtime = CacheJobs(cfg.minio_endpoint, cfg.minio_lakehouse_bucket)
             register_vol_regime(_runtime)
-            register_roots(_runtime)
-            _runtime.request("option_roots", "", {})
             atexit.register(_runtime.close)
             _runtime.start()
         return _runtime
@@ -160,37 +157,3 @@ def available_dates(root: str, after: date, before: date) -> list[date]:
     jobs = runtime()
     with VolRegimeObservationStore(jobs.path, jobs.namespace) as store:
         return store.dates(root, after, before)
-
-
-def register_roots(jobs: CacheJobs) -> None:
-    def compute(_root: str, _params: dict[str, Any]) -> None:
-        roots = CacheReader().list_roots()
-        with jobs.connection() as db:
-            db.execute(
-                "INSERT OR REPLACE INTO cache_metadata VALUES (?,?,?,?,NULL)",
-                (jobs.namespace, "option_roots", json.dumps(roots), now_utc()),
-            )
-
-    jobs.register(
-        JobDefinition(
-            "option_roots",
-            {},
-            lambda p: {},
-            compute,
-            lambda cutoff: None,
-            refresh_seconds=300,
-            warmup_enabled=False,
-        )
-    )
-
-
-def cached_roots() -> tuple[list[str], bool]:
-    """Persist metadata across app restarts; remote refresh uses the shared worker."""
-    jobs = runtime()
-    jobs.request("option_roots", "", {})
-    with jobs.connection() as db:
-        row = db.execute(
-            "SELECT payload_json FROM cache_metadata WHERE namespace_id=? AND metadata_key=?",
-            (jobs.namespace, "option_roots"),
-        ).fetchone()
-    return (json.loads(row[0]), True) if row else (["SPXW"], False)

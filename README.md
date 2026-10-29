@@ -119,7 +119,7 @@ Monitor SQLite cache. A single in-process worker refreshes historical data throu
 Tractatus CacheReader, while chart requests reuse prior successful observations.
 Symbols selected on demand are cached without joining the warmup list.
 
-The sidebar **Cache Settings** page saves one shared warmup list for all chart jobs,
+The sidebar **Settings** page saves one shared warmup list for all chart jobs,
 initially empty. Its Vol Regime section saves target DTE and retention separately
 in SQLite. Retention defaults to 365 calendar days. Daily cleanup
 also runs after app downtime, and queries never rehydrate dates outside retention.
@@ -150,5 +150,37 @@ until their separate cache updates.
 
 After changing cache schemas or worker code during development, restart the dev
 container: Streamlit hot reload can leave existing background threads executing
-older code. Initial root discovery refreshes the dropdowns automatically when
-its metadata job completes.
+older code. Option-root dropdowns are seeded locally from committed YAML;
+no bucket discovery or root-refresh job runs.
+
+### Option root registry
+
+Supported roots are defined in [`src/options_monitor/config/option_roots.yaml`](src/options_monitor/config/option_roots.yaml):
+
+```yaml
+option_roots:
+  - option_root: SPXW
+    underlying: $SPX
+    asset_class: index
+  - option_root: QQQ
+    underlying: QQQ
+    asset_class: etf
+```
+
+Edit and commit this file, then restart the app to add or change supported roots.
+The packaged YAML is validated and seeds the indexed `option_roots` table whenever
+SQLite is created or rebuilt. Restarting also syncs config edits into an existing
+database: existing rows are upserted, removed YAML roots leave the registry, and
+unchanged rows retain their timestamp. There are no MinIO root scans or refresh
+buttons. The **Settings** page points to the configuration file.
+
+`option_root` and `underlying` are required, nonempty strings; duplicate roots are
+rejected. Additional JSON-compatible YAML fields are retained in each row's
+`metadata_json`. Each row also stores `namespace_id`, `refreshed_at` (configuration
+sync time), and nullable `last_error`. The initial 90 entries were copied from
+Tickrake's configured stock/ETF universes plus SPXW mapped to `$SPX`; the app does
+not read Tickrake's configuration at runtime.
+
+The supported-root registry is separate from the shared warmup list. Configuring
+a root makes it selectable; only roots selected in the warmup list run recurring
+historical jobs. A reset clears user settings but repopulates configured roots.

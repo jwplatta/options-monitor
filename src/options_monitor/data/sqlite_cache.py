@@ -8,6 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 
+from options_monitor.data.option_root_config import configured_option_roots, seed_option_roots
+
 _INITIALIZE_LOCK = Lock()
 
 # Edit these definitions directly. A differing cache schema is rebuilt on open.
@@ -54,10 +56,12 @@ _SCHEMA: tuple[str, ...] = (
             job_id TEXT NOT NULL, namespace_id TEXT NOT NULL, root TEXT NOT NULL,
             params_json TEXT NOT NULL, enabled INTEGER NOT NULL, position INTEGER NOT NULL,
             PRIMARY KEY(job_id, namespace_id, root, params_json))""",
-    """CREATE TABLE cache_metadata (
-            namespace_id TEXT NOT NULL, metadata_key TEXT NOT NULL,
-            payload_json TEXT NOT NULL, refreshed_at TEXT NOT NULL, last_error TEXT,
-            PRIMARY KEY(namespace_id, metadata_key))""",
+    """CREATE TABLE option_roots (
+            option_root TEXT NOT NULL, underlying TEXT NOT NULL,
+            namespace_id TEXT NOT NULL, refreshed_at TEXT NOT NULL, last_error TEXT,
+            metadata_json TEXT NOT NULL,
+            PRIMARY KEY(namespace_id, option_root))""",
+    """CREATE INDEX option_roots_root ON option_roots(option_root)""",
     """CREATE TABLE cache_settings (
             setting_key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL)""",
     """CREATE TABLE cache_generations (
@@ -139,6 +143,7 @@ def _initialize(conn: sqlite3.Connection) -> None:
 
 def connect_cache(path: Path | None = None) -> sqlite3.Connection:
     """Open a cache using the current schema, rebuilding incompatible contents."""
+    configured_option_roots()  # Validate config before touching an existing cache.
     db_path = path or cache_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     # SQLite journal-mode setup can fail immediately if sibling threads initialize
@@ -150,6 +155,8 @@ def connect_cache(path: Path | None = None) -> sqlite3.Connection:
             conn.execute("PRAGMA busy_timeout=30000")
             conn.execute("PRAGMA journal_mode=WAL")
             _initialize(conn)
+            with conn:
+                seed_option_roots(conn)
         except Exception:
             conn.close()
             raise
