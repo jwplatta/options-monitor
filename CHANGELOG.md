@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Added frozen real SPXW chain regression tests for ATM IV, interpolated 25-delta call/put IVs, risk reversal, SQLite persistence, and historical percentiles without current-day leakage.
 - Removed manual calculation-version tracking from Vol Regime and shared cache jobs; formula changes require discarding the disposable cache. Remote source revision validation remains.
 - Replaced SQLite schema versions and migration history with current definitions; incompatible disposable caches are rebuilt automatically, including saved settings.
 - Cache Settings now has a shared warmup-list section for all chart jobs, initially empty; SPXW is no longer automatically warmed. Chart parameters remain separate.

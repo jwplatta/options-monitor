@@ -1,0 +1,26 @@
+[
+  {
+    "sample_date": "2026-10-12",
+    "uri": "s3://tractatus-lakehouse/options/schwab/2026/10/12/SPXW_samples_2026-10-12.parquet",
+    "revision": "\"6380184eb0b6ca8208abc4abb954677e\":49422674",
+    "size_bytes": 49422674
+  },
+  {
+    "sample_date": "2026-10-13",
+    "uri": "s3://tractatus-lakehouse/options/schwab/2026/10/13/SPXW_samples_2026-10-13.parquet",
+    "revision": "\"0f8412215121335872cdead4cd52096d\":50678965",
+    "size_bytes": 50678965
+  },
+  {
+    "sample_date": "2026-10-14",
+    "uri": "s3://tractatus-lakehouse/options/schwab/2026/10/14/SPXW_samples_2026-10-14.parquet",
+    "revision": "\"78785b6ac74d65985a88f2b55aa6fba1\":69100038",
+    "size_bytes": 69100038
+  },
+  {
+    "sample_date": "2026-10-15",
+    "uri": "s3://tractatus-lakehouse/options/schwab/2026/10/15/SPXW_samples_2026-10-15.parquet",
+    "revision": "\"31ea9026d5aa793b19dbe3542232940a\":56772631",
+    "size_bytes": 56772631
+  }
+]

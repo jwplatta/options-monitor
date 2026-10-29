@@ -61,3 +61,5 @@ Cache controls are now on the dedicated **Cache Settings** sidebar page, initial
 Schema maintenance update: current DDL only, no schema versions or migration chain. On open, incompatible table/index definitions cause an atomic cache rebuild, including stored settings. Matching schemas preserve contents. Obsolete tables are not part of the current definitions.
 
 Calculation-version update: Vol Regime and shared jobs no longer carry manual version constants or columns. Remote revision changes still invalidate observations. Formula/sampling changes require stopping the app and discarding its cache before recomputing, even if the SQLite schema is unchanged.
+
+Real-data regression coverage: 45 captured SPXW chain rows from October 12–15, 2026, eight daily-selected snapshots. Sources and independent Decimal reference calculations are documented in tests/fixtures/vol_regime. Tests check ATM IV, both interpolated 25-delta IVs, RR, persisted metrics and a six-observation historical percentile comparison excluding the current day. Full checks pass with 167 tests.
