@@ -15,7 +15,7 @@ description: Dashboard cache implementation and current option-root configuratio
 - The committed `src/options_monitor/config/option_roots.yaml` is the supported-root source of truth. Each entry requires option_root and underlying; additional JSON-compatible fields become per-row metadata.
 - The SQLite option_roots table has option_root, underlying, namespace_id, refreshed_at, last_error and metadata_json; PK(namespace_id,option_root), index(option_root).
 - Seed after database creation/reset, and sync on restart. Upsert changed entries and remove entries deleted from YAML; unchanged rows keep timestamps. Validate before touching existing caches. Never scan MinIO for roots; no refresh button or root job.
-- Initial registry: 90 explicitly configured stock/ETF roots plus the SPXW-to-$SPX mapping. It is packaged with the app, not read from another repo at runtime.
+- Registry reconciled against the 2026-10-29 historical bucket inventory; index underlying mappings match Tractatus normalization. It is packaged with the app, not read from another repo at runtime.
 - Sidebar page is Settings. A separate shared warmup list is persisted in SQLite, initially empty; each chart job uses that list and its own parameters. Configured roots are not automatically warmed.
 
 ## Historical cache contract
@@ -39,3 +39,17 @@ description: Dashboard cache implementation and current option-root configuratio
 - Live 30-day / 12-session measurements: SPXW cold compute 3.400 s, unchanged refresh 0.815 s, SQLite range 0.192 ms; TSLA 1.171 s / 0.833 s / 0.129 ms. Both produced 24 IV and 24 RR observations. In-memory distribution lookups averaged about 0.004 ms.
 - Timings exclude live reads/rendering and are not a multi-user guarantee. Source history ended October 16; coverage is independently warned about. Warm history must perform no synchronous historical remote scans; initial local target is under 100 ms per symbol.
 - Dev cache defaults to ~/.cache/options-monitor-dev; production keeps its separate path. Restart dev after worker/schema changes to stop old hot-reloaded threads. Production services were not restarted.
+
+## Historical bucket root reconciliation (2026-10-29)
+
+One-time CacheReader listing of tractatus-lakehouse, schwab provider: 144 roots. All are now explicitly configured in YAML. Index mappings were checked against Tractatus normalization. Existing configured roots without historical objects were retained: ANSS, DAY, GOOGLE. Runtime still uses only committed YAML and does not scan the bucket.
+
+```text
+AAPL ACN ADBE ADI ADP ADSK AMAT AMD AMZN ANET ARKK ARM ASTS AVGO BAC CAT CDNS CLSK COIN COST
+CRM CRWD CRWV CSCO CVNA CVX DELL DIA DJX DJXW DKNG DRAM DXC EEM EFA EPAM FICO FTNT FXI GEN GLD
+GME GOOG GOOGL GPN HD HOOD HPE HPQ HYG IBM IEF IJR INTC INTU IT ITA IWD IWF IWM JNK JPM KLAC
+KRE LLY LQD LRCX MA MARA MCHP MDY META MPWR MRVL MSCI MSFT MSTR MU NDX NDXP NFLX NOW NTAP NVDA
+NXPI ON ORCL PANW PAYC PAYX PLTR PYPL QCOM QQQ RBLX RIVN RSP RUT RUTW SBUX SCHW SHY SLV SMCI
+SMH SNAP SNPS SOFI SOXL SPCX SPX SPXW SPY STX SWKS TAN TER TIP TLT TSLA TXN UBER UNH V VIX VIXW
+WDC WMT XBI XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY XOM XOP XRT XSP
+```

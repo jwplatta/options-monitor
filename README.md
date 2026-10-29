@@ -177,9 +177,10 @@ buttons. The **Settings** page points to the configuration file.
 `option_root` and `underlying` are required, nonempty strings; duplicate roots are
 rejected. Additional JSON-compatible YAML fields are retained in each row's
 `metadata_json`. Each row also stores `namespace_id`, `refreshed_at` (configuration
-sync time), and nullable `last_error`. The initial 90 entries were copied from
-Tickrake's configured stock/ETF universes plus SPXW mapped to `$SPX`; the app does
-not read Tickrake's configuration at runtime.
+sync time), and nullable `last_error`. The registry includes all 144 historical roots found in tractatus-lakehouse on
+2026-10-29, plus 3 previously configured roots without historical objects.
+Index underlying mappings match Tractatus normalization. The app does not scan
+the bucket or read another repo at runtime.
 
 The supported-root registry is separate from the shared warmup list. Configuring
 a root makes it selectable; only roots selected in the warmup list run recurring

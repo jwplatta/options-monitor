@@ -95,3 +95,38 @@ def test_custom_namespace_and_dropdown_read_configured_registry(tmp_path, monkey
     items, ready = roots.available_roots()
     assert ready
     assert "SPXW" in items
+
+
+def test_committed_registry_covers_captured_lakehouse_inventory():
+    import json
+    from pathlib import Path
+
+    snapshot = Path(__file__).parents[1] / "fixtures" / "option_roots" / "lakehouse_2026-10-29.json"
+    inventory = json.loads(snapshot.read_text())["option_roots"]
+    configured = {
+        row[0] for row in option_root_config.load_option_roots(option_root_config.CONFIG_PATH)
+    }
+    assert set(inventory) <= configured
+
+
+@pytest.mark.parametrize(
+    "root,underlying",
+    [
+        ("NDX", "$NDX"),
+        ("NDXP", "$NDX"),
+        ("XSP", "$XSP"),
+        ("SPX", "$SPX"),
+        ("SPXW", "$SPX"),
+        ("RUT", "$RUT"),
+        ("RUTW", "$RUT"),
+        ("VIX", "$VIX"),
+        ("VIXW", "$VIX"),
+        ("DJX", "$DJX"),
+        ("DJXW", "$DJX"),
+    ],
+)
+def test_index_underlying_mappings(root, underlying):
+    configured = {
+        r[0]: r[1] for r in option_root_config.load_option_roots(option_root_config.CONFIG_PATH)
+    }
+    assert configured[root] == underlying

@@ -1,44 +1,177 @@
 # Supported dashboard option roots. Edit and restart the app to change this registry.
+# Reconciled against tractatus-lakehouse (schwab) on 2026-10-29.
 # Root-to-underlying mappings are explicit; extra fields are retained as metadata.
 option_roots:
-- option_root: SPXW
-  underlying: $SPX
-  asset_class: index
-- option_root: ADBE
-  underlying: ADBE
+- option_root: AAPL
+  underlying: AAPL
   asset_class: equity
 - option_root: ACN
   underlying: ACN
   asset_class: equity
-- option_root: ADSK
-  underlying: ADSK
+- option_root: ADBE
+  underlying: ADBE
+  asset_class: equity
+- option_root: ADI
+  underlying: ADI
   asset_class: equity
 - option_root: ADP
   underlying: ADP
   asset_class: equity
+- option_root: ADSK
+  underlying: ADSK
+  asset_class: equity
+- option_root: AMAT
+  underlying: AMAT
+  asset_class: equity
+- option_root: AMD
+  underlying: AMD
+  asset_class: equity
+- option_root: AMZN
+  underlying: AMZN
+  asset_class: equity
+- option_root: ANET
+  underlying: ANET
+  asset_class: equity
 - option_root: ANSS
   underlying: ANSS
+  asset_class: equity
+- option_root: ARKK
+  underlying: ARKK
+  asset_class: etf
+- option_root: ARM
+  underlying: ARM
+  asset_class: equity
+- option_root: ASTS
+  underlying: ASTS
+  asset_class: equity
+- option_root: AVGO
+  underlying: AVGO
+  asset_class: equity
+- option_root: BAC
+  underlying: BAC
+  asset_class: equity
+- option_root: CAT
+  underlying: CAT
   asset_class: equity
 - option_root: CDNS
   underlying: CDNS
   asset_class: equity
+- option_root: CLSK
+  underlying: CLSK
+  asset_class: equity
+- option_root: COIN
+  underlying: COIN
+  asset_class: equity
+- option_root: COST
+  underlying: COST
+  asset_class: equity
 - option_root: CRM
   underlying: CRM
+  asset_class: equity
+- option_root: CRWD
+  underlying: CRWD
+  asset_class: equity
+- option_root: CRWV
+  underlying: CRWV
+  asset_class: equity
+- option_root: CSCO
+  underlying: CSCO
+  asset_class: equity
+- option_root: CVNA
+  underlying: CVNA
+  asset_class: equity
+- option_root: CVX
+  underlying: CVX
   asset_class: equity
 - option_root: DAY
   underlying: DAY
   asset_class: equity
+- option_root: DELL
+  underlying: DELL
+  asset_class: equity
+- option_root: DIA
+  underlying: DIA
+  asset_class: etf
+- option_root: DJX
+  underlying: $DJX
+  asset_class: index
+- option_root: DJXW
+  underlying: $DJX
+  asset_class: index
+- option_root: DKNG
+  underlying: DKNG
+  asset_class: equity
+- option_root: DRAM
+  underlying: DRAM
+  asset_class: etf
+- option_root: DXC
+  underlying: DXC
+  asset_class: equity
+- option_root: EEM
+  underlying: EEM
+  asset_class: etf
+- option_root: EFA
+  underlying: EFA
+  asset_class: etf
 - option_root: EPAM
   underlying: EPAM
   asset_class: equity
 - option_root: FICO
   underlying: FICO
   asset_class: equity
+- option_root: FTNT
+  underlying: FTNT
+  asset_class: equity
+- option_root: FXI
+  underlying: FXI
+  asset_class: etf
 - option_root: GEN
   underlying: GEN
   asset_class: equity
+- option_root: GLD
+  underlying: GLD
+  asset_class: etf
+- option_root: GME
+  underlying: GME
+  asset_class: equity
+- option_root: GOOG
+  underlying: GOOG
+  asset_class: equity
+- option_root: GOOGL
+  underlying: GOOGL
+  asset_class: equity
+- option_root: GOOGLE
+  underlying: GOOGLE
+  asset_class: equity
 - option_root: GPN
   underlying: GPN
+  asset_class: equity
+- option_root: HD
+  underlying: HD
+  asset_class: equity
+- option_root: HOOD
+  underlying: HOOD
+  asset_class: equity
+- option_root: HPE
+  underlying: HPE
+  asset_class: equity
+- option_root: HPQ
+  underlying: HPQ
+  asset_class: equity
+- option_root: HYG
+  underlying: HYG
+  asset_class: etf
+- option_root: IBM
+  underlying: IBM
+  asset_class: equity
+- option_root: IEF
+  underlying: IEF
+  asset_class: etf
+- option_root: IJR
+  underlying: IJR
+  asset_class: etf
+- option_root: INTC
+  underlying: INTC
   asset_class: equity
 - option_root: INTU
   underlying: INTU
@@ -46,20 +179,101 @@ option_roots:
 - option_root: IT
   underlying: IT
   asset_class: equity
+- option_root: ITA
+  underlying: ITA
+  asset_class: etf
+- option_root: IWD
+  underlying: IWD
+  asset_class: etf
+- option_root: IWF
+  underlying: IWF
+  asset_class: etf
+- option_root: IWM
+  underlying: IWM
+  asset_class: etf
+- option_root: JNK
+  underlying: JNK
+  asset_class: etf
+- option_root: JPM
+  underlying: JPM
+  asset_class: equity
+- option_root: KLAC
+  underlying: KLAC
+  asset_class: equity
+- option_root: KRE
+  underlying: KRE
+  asset_class: etf
+- option_root: LLY
+  underlying: LLY
+  asset_class: equity
+- option_root: LQD
+  underlying: LQD
+  asset_class: etf
+- option_root: LRCX
+  underlying: LRCX
+  asset_class: equity
 - option_root: MA
   underlying: MA
+  asset_class: equity
+- option_root: MARA
+  underlying: MARA
+  asset_class: equity
+- option_root: MCHP
+  underlying: MCHP
+  asset_class: equity
+- option_root: MDY
+  underlying: MDY
+  asset_class: etf
+- option_root: META
+  underlying: META
+  asset_class: equity
+- option_root: MPWR
+  underlying: MPWR
+  asset_class: equity
+- option_root: MRVL
+  underlying: MRVL
   asset_class: equity
 - option_root: MSCI
   underlying: MSCI
   asset_class: equity
-- option_root: NTAP
-  underlying: NTAP
+- option_root: MSFT
+  underlying: MSFT
+  asset_class: equity
+- option_root: MSTR
+  underlying: MSTR
+  asset_class: equity
+- option_root: MU
+  underlying: MU
+  asset_class: equity
+- option_root: NDX
+  underlying: $NDX
+  asset_class: index
+- option_root: NDXP
+  underlying: $NDX
+  asset_class: index
+- option_root: NFLX
+  underlying: NFLX
   asset_class: equity
 - option_root: NOW
   underlying: NOW
   asset_class: equity
+- option_root: NTAP
+  underlying: NTAP
+  asset_class: equity
+- option_root: NVDA
+  underlying: NVDA
+  asset_class: equity
+- option_root: NXPI
+  underlying: NXPI
+  asset_class: equity
+- option_root: 'ON'
+  underlying: 'ON'
+  asset_class: equity
 - option_root: ORCL
   underlying: ORCL
+  asset_class: equity
+- option_root: PANW
+  underlying: PANW
   asset_class: equity
 - option_root: PAYC
   underlying: PAYC
@@ -67,161 +281,128 @@ option_roots:
 - option_root: PAYX
   underlying: PAYX
   asset_class: equity
+- option_root: PLTR
+  underlying: PLTR
+  asset_class: equity
 - option_root: PYPL
   underlying: PYPL
-  asset_class: equity
-- option_root: SNPS
-  underlying: SNPS
-  asset_class: equity
-- option_root: V
-  underlying: V
-  asset_class: equity
-- option_root: AAPL
-  underlying: AAPL
-  asset_class: equity
-- option_root: ANET
-  underlying: ANET
-  asset_class: equity
-- option_root: CSCO
-  underlying: CSCO
-  asset_class: equity
-- option_root: DELL
-  underlying: DELL
-  asset_class: equity
-- option_root: HPQ
-  underlying: HPQ
-  asset_class: equity
-- option_root: HPE
-  underlying: HPE
-  asset_class: equity
-- option_root: STX
-  underlying: STX
-  asset_class: equity
-- option_root: WDC
-  underlying: WDC
-  asset_class: equity
-- option_root: AMD
-  underlying: AMD
-  asset_class: equity
-- option_root: AMAT
-  underlying: AMAT
-  asset_class: equity
-- option_root: AVGO
-  underlying: AVGO
-  asset_class: equity
-- option_root: INTC
-  underlying: INTC
-  asset_class: equity
-- option_root: KLAC
-  underlying: KLAC
-  asset_class: equity
-- option_root: LRCX
-  underlying: LRCX
-  asset_class: equity
-- option_root: MCHP
-  underlying: MCHP
-  asset_class: equity
-- option_root: MPWR
-  underlying: MPWR
-  asset_class: equity
-- option_root: MU
-  underlying: MU
-  asset_class: equity
-- option_root: NVDA
-  underlying: NVDA
-  asset_class: equity
-- option_root: 'ON'
-  underlying: 'ON'
   asset_class: equity
 - option_root: QCOM
   underlying: QCOM
   asset_class: equity
-- option_root: SWKS
-  underlying: SWKS
+- option_root: QQQ
+  underlying: QQQ
+  asset_class: etf
+- option_root: RBLX
+  underlying: RBLX
   asset_class: equity
-- option_root: TER
-  underlying: TER
+- option_root: RIVN
+  underlying: RIVN
   asset_class: equity
-- option_root: TXN
-  underlying: TXN
-  asset_class: equity
-- option_root: IBM
-  underlying: IBM
-  asset_class: equity
-- option_root: DXC
-  underlying: DXC
-  asset_class: equity
-- option_root: MSFT
-  underlying: MSFT
-  asset_class: equity
-- option_root: MRVL
-  underlying: MRVL
-  asset_class: equity
-- option_root: TSLA
-  underlying: TSLA
-  asset_class: equity
-- option_root: FTNT
-  underlying: FTNT
-  asset_class: equity
-- option_root: ADI
-  underlying: ADI
-  asset_class: equity
-- option_root: NXPI
-  underlying: NXPI
-  asset_class: equity
-- option_root: CRWD
-  underlying: CRWD
-  asset_class: equity
-- option_root: PANW
-  underlying: PANW
-  asset_class: equity
-- option_root: NFLX
-  underlying: NFLX
-  asset_class: equity
-- option_root: PLTR
-  underlying: PLTR
-  asset_class: equity
-- option_root: META
-  underlying: META
-  asset_class: equity
-- option_root: GOOGLE
-  underlying: GOOGLE
-  asset_class: equity
-- option_root: GOOG
-  underlying: GOOG
-  asset_class: equity
-- option_root: AMZN
-  underlying: AMZN
-  asset_class: equity
-- option_root: UBER
-  underlying: UBER
-  asset_class: equity
-- option_root: HOOD
-  underlying: HOOD
+- option_root: RSP
+  underlying: RSP
+  asset_class: etf
+- option_root: RUT
+  underlying: $RUT
+  asset_class: index
+- option_root: RUTW
+  underlying: $RUT
+  asset_class: index
+- option_root: SBUX
+  underlying: SBUX
   asset_class: equity
 - option_root: SCHW
   underlying: SCHW
   asset_class: equity
-- option_root: SBUX
-  underlying: SBUX
-  asset_class: equity
-- option_root: SPCX
-  underlying: SPCX
-  asset_class: equity
+- option_root: SHY
+  underlying: SHY
+  asset_class: etf
+- option_root: SLV
+  underlying: SLV
+  asset_class: etf
 - option_root: SMCI
   underlying: SMCI
   asset_class: equity
-- option_root: CRWV
-  underlying: CRWV
+- option_root: SMH
+  underlying: SMH
+  asset_class: etf
+- option_root: SNAP
+  underlying: SNAP
   asset_class: equity
+- option_root: SNPS
+  underlying: SNPS
+  asset_class: equity
+- option_root: SOFI
+  underlying: SOFI
+  asset_class: equity
+- option_root: SOXL
+  underlying: SOXL
+  asset_class: etf
+- option_root: SPCX
+  underlying: SPCX
+  asset_class: equity
+- option_root: SPX
+  underlying: $SPX
+  asset_class: index
+- option_root: SPXW
+  underlying: $SPX
+  asset_class: index
+- option_root: SPY
+  underlying: SPY
+  asset_class: etf
+- option_root: STX
+  underlying: STX
+  asset_class: equity
+- option_root: SWKS
+  underlying: SWKS
+  asset_class: equity
+- option_root: TAN
+  underlying: TAN
+  asset_class: etf
+- option_root: TER
+  underlying: TER
+  asset_class: equity
+- option_root: TIP
+  underlying: TIP
+  asset_class: etf
+- option_root: TLT
+  underlying: TLT
+  asset_class: etf
+- option_root: TSLA
+  underlying: TSLA
+  asset_class: equity
+- option_root: TXN
+  underlying: TXN
+  asset_class: equity
+- option_root: UBER
+  underlying: UBER
+  asset_class: equity
+- option_root: UNH
+  underlying: UNH
+  asset_class: equity
+- option_root: V
+  underlying: V
+  asset_class: equity
+- option_root: VIX
+  underlying: $VIX
+  asset_class: index
+- option_root: VIXW
+  underlying: $VIX
+  asset_class: index
+- option_root: WDC
+  underlying: WDC
+  asset_class: equity
+- option_root: WMT
+  underlying: WMT
+  asset_class: equity
+- option_root: XBI
+  underlying: XBI
+  asset_class: etf
+- option_root: XLB
+  underlying: XLB
+  asset_class: etf
 - option_root: XLC
   underlying: XLC
-  asset_class: etf
-- option_root: XLY
-  underlying: XLY
-  asset_class: etf
-- option_root: XLP
-  underlying: XLP
   asset_class: etf
 - option_root: XLE
   underlying: XLE
@@ -229,17 +410,14 @@ option_roots:
 - option_root: XLF
   underlying: XLF
   asset_class: etf
-- option_root: XLV
-  underlying: XLV
-  asset_class: etf
 - option_root: XLI
   underlying: XLI
   asset_class: etf
 - option_root: XLK
   underlying: XLK
   asset_class: etf
-- option_root: XLB
-  underlying: XLB
+- option_root: XLP
+  underlying: XLP
   asset_class: etf
 - option_root: XLRE
   underlying: XLRE
@@ -247,27 +425,21 @@ option_roots:
 - option_root: XLU
   underlying: XLU
   asset_class: etf
-- option_root: SPY
-  underlying: SPY
+- option_root: XLV
+  underlying: XLV
   asset_class: etf
-- option_root: RSP
-  underlying: RSP
+- option_root: XLY
+  underlying: XLY
   asset_class: etf
-- option_root: IWM
-  underlying: IWM
+- option_root: XOM
+  underlying: XOM
+  asset_class: equity
+- option_root: XOP
+  underlying: XOP
   asset_class: etf
-- option_root: QQQ
-  underlying: QQQ
+- option_root: XRT
+  underlying: XRT
   asset_class: etf
-- option_root: GLD
-  underlying: GLD
-  asset_class: etf
-- option_root: SLV
-  underlying: SLV
-  asset_class: etf
-- option_root: DRAM
-  underlying: DRAM
-  asset_class: etf
-- option_root: SOXL
-  underlying: SOXL
-  asset_class: etf
+- option_root: XSP
+  underlying: $XSP
+  asset_class: index
