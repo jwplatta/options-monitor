@@ -53,3 +53,37 @@ NXPI ON ORCL PANW PAYC PAYX PLTR PYPL QCOM QQQ RBLX RIVN RSP RUT RUTW SBUX SCHW 
 SMH SNAP SNPS SOFI SOXL SPCX SPX SPXW SPY STX SWKS TAN TER TIP TLT TSLA TXN UBER UNH V VIX VIXW
 WDC WMT XBI XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY XOM XOP XRT XSP
 ```
+
+## Selection versus calculation profile (2026-10-29)
+
+Ran `scripts/profile_vol_regime.py --days 60 --repeats 2` inside dev, using a fresh
+SQLite file per symbol/run. Both symbols had 31 historical dates and 62 selected
+snapshots, through October 16. Server, object and filesystem caches were not
+cleared. Raw timings, including each date, are in
+`benchmarks/vol-regime-stages-2026-10-29.json`.
+
+| Symbol / run | File discovery | Daily chain selection | IV/RR calculation | SQLite writes | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| SPXW / 1 | 8.692 s | 7.143 s | 0.356 s | 0.055 s | 16.517 s |
+| SPXW / 2 | 3.329 s | 5.607 s | 0.306 s | 0.038 s | 9.698 s |
+| TSLA / 1 | 3.371 s | 0.943 s | 0.303 s | 0.068 s | 4.836 s |
+| TSLA / 2 | 3.127 s | 1.167 s | 0.309 s | 0.154 s | 4.893 s |
+
+Selection includes remote Parquet access, DuckDB nearest-DTE/selected-time queries,
+and DataFrame materialization. Calculation includes pandas grouping and all IV/RR
+math. Total additionally includes reader/SQLite/query setup, teardown and other
+loop overhead. Timings exclude current intraday reads, percentiles and plotting.
+The benchmark uses 60 days of history; normal warmup uses configured retention.
+
+Calculation was about 2–3% of total SPXW time and 6% of TSLA time in these runs.
+Even eliminating all arithmetic would therefore save only about 0.3 seconds per
+symbol over this window. Prioritize reusing/batching historical file inventories,
+then batching selection, before vectorizing the calculation. No production query
+or calculation behavior was changed for this measurement.
+
+Repeat with a new isolated directory:
+
+```sh
+python scripts/profile_vol_regime.py --symbols SPXW TSLA --days 60 --repeats 2 \
+  --cache-dir /tmp/vol-regime-profile-fresh --output /tmp/vol-regime-profile.json
+```
