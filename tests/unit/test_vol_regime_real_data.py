@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from tractatus.calc.vol import compute_risk_reversal
 
+from options_monitor.calc.risk_reversal import compute_risk_reversal
 from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.data.vol_regime_cache import VolRegimeObservationStore
 

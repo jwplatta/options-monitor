@@ -16,8 +16,8 @@ from tractatus.calc.gex import (
     net_gex_by_strike,
 )
 from tractatus.calc.gex_term_structure import compute_gex_term_structure
-from tractatus.calc.vol import compute_risk_reversal
 
+from options_monitor.calc.risk_reversal import compute_risk_reversal
 from options_monitor.charts.gex_aggregate import build_gex_aggregate_chart
 from options_monitor.charts.gex_single import build_gex_single_expiry_chart
 from options_monitor.charts.gex_term_structure import build_gex_term_structure_chart

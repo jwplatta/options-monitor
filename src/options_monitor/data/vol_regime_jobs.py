@@ -9,9 +9,9 @@ from functools import lru_cache
 from typing import Any
 
 import pandas as pd
-from tractatus.calc.vol import compute_risk_reversal
 from tractatus.reader import CacheReader, ReaderConfig
 
+from options_monitor.calc.risk_reversal import compute_risk_reversal
 from options_monitor.calc.vol_regime import compute_atm_iv
 from options_monitor.data.cache_jobs import CacheJobs, JobDefinition, market_today
 from options_monitor.data.source_inventory import SourceInventory

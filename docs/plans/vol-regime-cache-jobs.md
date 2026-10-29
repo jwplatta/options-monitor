@@ -111,3 +111,5 @@ repeatable script: `scripts/benchmark_source_inventory.py`.
 Settings now displays all configured root/underlying/asset-class mappings in a
 read-only table. A Streamlit rendering test checks the full row count and index
 underlying mappings.
+
+Risk-reversal calculation ownership: options_monitor.calc.risk_reversal now owns the result type, 25-delta IV/strike interpolation and RR calculation. Workers, charts and profiling scripts use the same local implementation; real-market reference tests validate it independently. Tractatus remains the data-access interface. Existing cached metrics remain compatible because finite-input interpolation semantics are preserved.

@@ -1,10 +1,11 @@
-"""Unit tests for compute_risk_reversal in calc/vol.py."""
+"""Unit tests for compute_risk_reversal in the local calc/risk_reversal.py."""
 
 from __future__ import annotations
 
 import pandas as pd
 import pytest
-from tractatus.calc.vol import RiskReversalResult, compute_risk_reversal
+
+from options_monitor.calc.risk_reversal import RiskReversalResult, compute_risk_reversal
 
 
 @pytest.fixture()
@@ -106,3 +107,30 @@ def test_rr_expiry_filter(synthetic_opts: pd.DataFrame) -> None:
     assert result is not None
     assert result.iv_25d_call == pytest.approx(18.0)  # not 99.0
     assert result.iv_25d_put == pytest.approx(20.0)
+
+
+def test_rr_endpoint_fallback_for_single_row_per_leg():
+    frame = pd.DataFrame(
+        {
+            "contract_type": ["call", "put"],
+            "delta": [0.1, -0.1],
+            "volatility": [18.0, 21.0],
+            "strike": [110.0, 90.0],
+        }
+    )
+    result = compute_risk_reversal(frame)
+    assert result == RiskReversalResult(-3.0, 18.0, 21.0, 110.0, 90.0)
+
+
+def test_rr_numeric_coercion_does_not_mutate_input():
+    frame = pd.DataFrame(
+        {
+            "contract_type": ["CALL", "PUT", "CALL"],
+            "delta": ["0.25", "-0.25", "bad"],
+            "volatility": ["18", "21", "99"],
+            "strike": ["110", "90", "120"],
+        }
+    )
+    before = frame.copy(deep=True)
+    assert compute_risk_reversal(frame) == RiskReversalResult(-3.0, 18.0, 21.0, 110.0, 90.0)
+    pd.testing.assert_frame_equal(frame, before)

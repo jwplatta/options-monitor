@@ -7,9 +7,9 @@ from datetime import date, timedelta
 import duckdb
 import pandas as pd
 import streamlit as st
-from tractatus.calc.vol import compute_risk_reversal
 from tractatus.tickrake.options.queries import OPTIONS_DTYPES
 
+from options_monitor.calc.risk_reversal import compute_risk_reversal
 from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.charts.vol_regime import build_vol_regime_chart
 from options_monitor.data import vol_regime_jobs

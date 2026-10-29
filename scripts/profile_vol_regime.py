@@ -14,9 +14,9 @@ from pathlib import Path
 from time import perf_counter
 
 import pandas as pd
-from tractatus.calc.vol import compute_risk_reversal
 from tractatus.reader import CacheReader
 
+from options_monitor.calc.risk_reversal import compute_risk_reversal
 from options_monitor.calc.vol_regime import compute_atm_iv
 from options_monitor.data.cache_jobs import market_today
 from options_monitor.data.vol_regime_cache import VolRegimeObservationStore

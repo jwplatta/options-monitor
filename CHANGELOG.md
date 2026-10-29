@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Moved risk-reversal and 25-delta IV interpolation into Options Monitor’s local calculation package; charts, workers, profilers, and tests now share that implementation.
 - Reuse a persistent, range-aware multi-root historical file inventory across Vol Regime symbol/DTE jobs, using merged Tractatus PR #41.
 - Added a read-only table of all configured option roots, underlyings, and asset classes to Settings.
 - Reconciled the root YAML with all 144 historical lakehouse roots, adding 57 entries and explicit index-underlying mappings, including NDX/NDXP → $NDX and XSP → $XSP.
