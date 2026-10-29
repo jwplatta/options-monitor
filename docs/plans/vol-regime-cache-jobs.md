@@ -19,13 +19,13 @@ All SQLite DDL, indexes, constraints, and migrations live in data/sqlite_cache.p
 ## Repeatable jobs
 Register job ID, calculation version, canonical parameters, compute function, defaults, refresh interval and retention. One bounded in-process worker owns its reader/connection. Deduplicate jobs, prioritize user requests, persist status/retries/watchlists, recover interrupted work, and serve previous successful results during refresh. On-demand symbols cache normally without joining the warmup list. Metadata refresh: five minutes; historical refresh: fifteen minutes. Failed discovery preserves prior data.
 
-Persist watchlist and retention settings in SQLite, editable through dashboard settings. Default warmup: SPXW / 30 DTE. Default retention: 365 calendar days; configurable per job. Daily cleanup with startup catch-up removes strictly older dates, invalidates distributions, and prevents rehydration outside retention. Retry after 30 seconds, doubling to fifteen minutes. No raw chains or final live percentiles in SQLite.
+Persist watchlist and retention settings in SQLite, editable through dashboard settings. Default warmup: empty shared list; Vol Regime defaults to 30 DTE. Default retention: 365 calendar days; configurable per job. Daily cleanup with startup catch-up removes strictly older dates, invalidates distributions, and prevents rehydration outside retention. Retry after 30 seconds, doubling to fifteen minutes. No raw chains or final live percentiles in SQLite.
 
 ## Schemas
 cache_namespaces: namespace_id PK, endpoint, historical_bucket, provider; unique source identity.
 cache_sources: namespace_id/root/sample_date PK, uri, revision, size_bytes, checked_at.
 cache_job_state: job_id/namespace_id/root/params_json PK, calc_version, status, request/start/completion/access/retry times, attempt_count, last_error.
-cache_warmup_targets: job_id/namespace_id/root/params_json PK, enabled, position.
+cache_warmup_targets: job_id/namespace_id/root/params_json PK, enabled, position. Shared-list entries use job_id `*` and empty parameters; per-chart warmup parameters live in cache_settings. Legacy per-chart lists are ignored.
 cache_metadata: namespace_id/metadata_key PK, payload_json, refreshed_at, last_error.
 cache_settings: setting_key PK, value_json, updated_at.
 cache_generations: namespace_id/job_id/root PK, generation.

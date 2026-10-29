@@ -64,7 +64,7 @@ def test_cleanup_once_daily_and_retention_cutoff(tmp_path, monkeypatch):
     cleanups = []
     jobs.register(
         JobDefinition(
-            "demo", 1, {}, lambda p: p, lambda r, p: None, cleanups.append, default_roots=()
+            "demo", 1, {}, lambda p: p, lambda r, p: None, cleanups.append, warmup_enabled=False
         )
     )
     jobs.tick()
@@ -169,3 +169,53 @@ def test_invalid_timezone_fails_clearly(monkeypatch):
     monkeypatch.setenv("OPTIONS_MONITOR_TIMEZONE", "invalid/timezone")
     with pytest.raises(ZoneInfoNotFoundError):
         market_today()
+
+
+def test_unconfigured_jobs_do_not_automatically_warm_any_symbols(tmp_path):
+    jobs = jobs_at(tmp_path)
+    compute = MagicMock()
+    jobs.register(JobDefinition("demo", 1, {}, lambda p: p, compute, lambda cutoff: None))
+    assert not jobs.tick()
+    assert jobs.targets("demo") == []
+    compute.assert_not_called()
+
+
+def test_shared_warmup_list_applies_to_all_chart_jobs(tmp_path):
+    jobs = jobs_at(tmp_path)
+    calls = []
+    for job_id in ("regime", "skew"):
+        jobs.register(
+            JobDefinition(
+                job_id,
+                1,
+                {},
+                lambda p: p,
+                lambda root, p, job=job_id: calls.append((job, root)),
+                lambda cutoff: None,
+            )
+        )
+    jobs.set_shared_targets(["QQQ", "SPY"])
+    for _ in range(4):
+        assert jobs.tick()
+    assert set(calls) == {("regime", "QQQ"), ("regime", "SPY"), ("skew", "QQQ"), ("skew", "SPY")}
+    reopened = jobs_at(tmp_path)
+    assert reopened.targets("regime") == ["QQQ", "SPY"]
+    reopened.set_shared_targets([])
+    assert reopened.targets("skew") == []
+
+
+def test_removing_warmup_list_cancels_pending_warmups_but_keeps_user_requests(tmp_path):
+    jobs = jobs_at(tmp_path)
+    calls = []
+    jobs.register(
+        JobDefinition(
+            "demo", 1, {}, lambda p: p, lambda root, p: calls.append(root), lambda cutoff: None
+        )
+    )
+    jobs.set_shared_targets(["SPXW"])
+    jobs.request("demo", "SPXW", {}, warmup=True)
+    jobs.request("demo", "QQQ", {})
+    jobs.set_shared_targets([])
+    assert jobs.tick()
+    assert calls == ["QQQ"]
+    assert not jobs.tick()

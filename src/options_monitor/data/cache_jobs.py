@@ -44,7 +44,7 @@ class JobDefinition:
     compute: Callable[[str, dict[str, Any]], None]
     cleanup: Callable[[date], None]
     refresh_seconds: int = 900
-    default_roots: tuple[str, ...] = ("SPXW",)
+    warmup_enabled: bool = True
 
 
 class CacheJobs:
@@ -112,38 +112,37 @@ class CacheJobs:
             )
 
     def targets(self, job_id: str) -> list[str]:
+        """Every chart uses the shared list; metadata jobs opt out of warmup."""
+        if job_id in self.definitions and not self.definitions[job_id].warmup_enabled:
+            return []
         with self.connection() as conn:
             return [
-                r[0]
-                for r in conn.execute(
-                    "SELECT root FROM cache_warmup_targets WHERE namespace_id=? AND job_id=? "
+                row[0]
+                for row in conn.execute(
+                    "SELECT root FROM cache_warmup_targets WHERE namespace_id=? AND job_id='*' "
                     "AND enabled=1 ORDER BY position",
-                    (self.namespace, job_id),
+                    (self.namespace,),
                 )
             ]
 
-    def set_targets(self, job_id: str, roots: list[str], params: dict[str, Any]) -> None:
-        definition = self.definitions[job_id]
-        payload = canonical(definition.validate(params))
+    def set_shared_targets(self, roots: list[str]) -> None:
+        """Persist the shared list without changing chart-specific parameters."""
         with self.connection() as conn:
             conn.execute(
-                "DELETE FROM cache_warmup_targets WHERE namespace_id=? AND job_id=?",
-                (self.namespace, job_id),
+                "DELETE FROM cache_warmup_targets WHERE namespace_id=? AND job_id='*'",
+                (self.namespace,),
             )
             conn.executemany(
-                "INSERT INTO cache_warmup_targets VALUES (?,?,?,?,1,?)",
-                [
-                    (job_id, self.namespace, root, payload, i)
-                    for i, root in enumerate(dict.fromkeys(roots))
-                ],
+                "INSERT INTO cache_warmup_targets VALUES ('*',?,?,'{}',1,?)",
+                [(self.namespace, root, index) for index, root in enumerate(dict.fromkeys(roots))],
             )
-            conn.executemany(
-                "INSERT OR REPLACE INTO cache_settings VALUES (?,?,?)",
-                [
-                    (f"{self.namespace}:{job_id}:watchlist_initialized", "true", now_utc()),
-                    (f"{self.namespace}:{job_id}:warmup_params", payload, now_utc()),
-                ],
-            )
+
+    def set_targets(self, job_id: str, roots: list[str], params: dict[str, Any]) -> None:
+        """Set a job's parameters and the shared warmup list."""
+        definition = self.definitions[job_id]
+        payload = definition.validate(params)
+        self.set_shared_targets(roots)
+        self.set_setting(f"{job_id}:warmup_params", payload)
 
     def request(self, job_id: str, root: str, params: dict[str, Any], warmup: bool = False) -> None:
         definition = self.definitions[job_id]
@@ -206,16 +205,19 @@ class CacheJobs:
             if self.setting(cleanup_key, "") != market_today().isoformat():
                 definition.cleanup(market_today() - timedelta(days=self.retention(job_id)))
                 self.set_setting(cleanup_key, market_today().isoformat())
-            if not self.setting(f"{job_id}:watchlist_initialized", False):
-                self.set_targets(job_id, list(definition.default_roots), definition.defaults)
-            with self.connection() as conn:
-                targets = conn.execute(
-                    "SELECT root,params_json FROM cache_warmup_targets "
-                    "WHERE namespace_id=? AND job_id=? AND enabled=1",
-                    (self.namespace, job_id),
-                ).fetchall()
-            for root, payload in targets:
-                self.request(job_id, root, json.loads(payload), warmup=True)
+            params = self.setting(f"{job_id}:warmup_params", definition.defaults)
+            roots = self.targets(job_id)
+            if definition.warmup_enabled:
+                with self.connection() as conn:
+                    sql = (
+                        "DELETE FROM cache_job_state WHERE namespace_id=? AND job_id=? "
+                        "AND priority=1 AND status IN ('queued','failed')"
+                    )
+                    if roots:
+                        sql += " AND root NOT IN (" + ",".join("?" for _ in roots) + ")"
+                    conn.execute(sql, (self.namespace, job_id, *roots))
+            for root in roots:
+                self.request(job_id, root, params, warmup=True)
         with self.connection() as conn:
             rows = conn.execute(
                 "SELECT job_id,root,params_json,attempt_count FROM cache_job_state "

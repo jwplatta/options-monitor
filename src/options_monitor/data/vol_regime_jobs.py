@@ -182,7 +182,7 @@ def register_roots(jobs: CacheJobs) -> None:
             compute,
             lambda cutoff: None,
             refresh_seconds=300,
-            default_roots=(),
+            warmup_enabled=False,
         )
     )
 

@@ -118,8 +118,9 @@ Monitor SQLite cache. A single in-process worker refreshes historical data throu
 Tractatus CacheReader, while chart requests reuse prior successful observations.
 Symbols selected on demand are cached without joining the warmup list.
 
-The sidebar **Cache Settings** page contains a Vol Regime section for warmup symbols, target
-DTE, and retention in SQLite. Retention defaults to 365 calendar days. Daily cleanup
+The sidebar **Cache Settings** page saves one shared warmup list for all chart jobs,
+initially empty. Its Vol Regime section saves target DTE and retention separately
+in SQLite. Retention defaults to 365 calendar days. Daily cleanup
 also runs after app downtime, and queries never rehydrate dates outside retention.
 Status and last successful verification are shown above the chart; old archive
 coverage is reported independently from refresh status.
