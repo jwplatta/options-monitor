@@ -133,3 +133,8 @@ for the schema and measurements.
 Dev defaults to `~/.cache/options-monitor-dev`, production keeps its existing cache
 path, and `OPTIONS_MONITOR_CACHE_DIR` overrides either. SQLite schema v2 destructively
 rebuilds the Vol Regime cache; its metrics are reconstructed in the background.
+
+`OPTIONS_MONITOR_TIMEZONE` sets the timezone used for cache job calendar dates and
+daily retention cleanup. It defaults to `America/Chicago` (Central Time, including
+daylight saving changes). Set it to another IANA timezone to override it. Persisted
+job timestamps remain UTC; historical chain sampling remains at 10:30 New York time.

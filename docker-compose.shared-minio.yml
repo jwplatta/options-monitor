@@ -16,6 +16,7 @@ services:
       PYTHONPATH: /tractatus/src:/app/src
       TRACTATUS_CACHE_DIR: /root/.tractatus/cache
       OPTIONS_MONITOR_CACHE_DIR: /root/.cache/options-monitor
+      OPTIONS_MONITOR_TIMEZONE: "${OPTIONS_MONITOR_TIMEZONE:-America/Chicago}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
       MINIO_INTRADAY_BUCKET: "${MINIO_INTRADAY_BUCKET:-tickrake-intraday}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"

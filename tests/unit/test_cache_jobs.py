@@ -129,3 +129,43 @@ def test_invalid_params_rejected_without_enqueuing(tmp_path):
     vol_regime_jobs.register_vol_regime(jobs)
     with pytest.raises(ValueError):
         jobs.request("vol_regime", "SPY", {"target_dte": -1})
+
+
+@pytest.mark.parametrize(
+    "configured, expected_zone, expected_day",
+    [
+        (None, "America/Chicago", date(2026, 10, 28)),
+        ("America/New_York", "America/New_York", date(2026, 10, 29)),
+    ],
+)
+def test_calendar_date_uses_configurable_timezone(
+    monkeypatch, configured, expected_zone, expected_day
+):
+    from datetime import UTC, datetime
+
+    from options_monitor.data import cache_jobs
+
+    instant = datetime(2026, 10, 29, 4, 30, tzinfo=UTC)
+
+    class Clock:
+        @staticmethod
+        def now(tz):
+            assert tz.key == expected_zone
+            return instant.astimezone(tz)
+
+    if configured is None:
+        monkeypatch.delenv("OPTIONS_MONITOR_TIMEZONE", raising=False)
+    else:
+        monkeypatch.setenv("OPTIONS_MONITOR_TIMEZONE", configured)
+    monkeypatch.setattr(cache_jobs, "datetime", Clock)
+    assert cache_jobs.market_today() == expected_day
+
+
+def test_invalid_timezone_fails_clearly(monkeypatch):
+    from zoneinfo import ZoneInfoNotFoundError
+
+    from options_monitor.data.cache_jobs import market_today
+
+    monkeypatch.setenv("OPTIONS_MONITOR_TIMEZONE", "invalid/timezone")
+    with pytest.raises(ZoneInfoNotFoundError):
+        market_today()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import sqlite3
 import threading
 from collections.abc import Callable, Iterator
@@ -25,7 +26,9 @@ def now_utc() -> str:
 
 
 def market_today() -> date:
-    return datetime.now(ZoneInfo("America/New_York")).date()
+    """Return the calendar date in the configured dashboard timezone."""
+    timezone = ZoneInfo(os.environ.get("OPTIONS_MONITOR_TIMEZONE", "America/Chicago"))
+    return datetime.now(timezone).date()
 
 
 def canonical(params: dict[str, Any]) -> str:
