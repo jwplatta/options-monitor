@@ -55,3 +55,5 @@ Dev Compose now defaults to a separate `~/.cache/options-monitor-dev` directory 
 SQLite v2 drops legacy Vol Regime tables and preserves Skew/Fixed Strike tables. The migration test verifies this explicitly. Cleanup uses the configurable dashboard date (`OPTIONS_MONITOR_TIMEZONE`, default `America/Chicago`), cascades to observations, and runs once daily plus startup catch-up. Changing retention schedules cleanup again and makes completed jobs eligible to refresh.
 
 Final checks before PR: Options Monitor `make check` passed (149 unit tests, Ruff, format, mypy, gitleaks); Tractatus `make check` passed (136 tests, Ruff, format, mypy). The root-discovery live smoke check initially exposed a recursive-listing stall; the prerequisite PR fixes it with delimiter-based index discovery, and the subsequent Streamlit check rendered successfully. No full-browser or load/concurrency benchmark was performed.
+
+Cache controls are now on the dedicated **Cache Settings** sidebar page, initially with a Vol Regime section. Additional chart sections can be added there in later PRs.

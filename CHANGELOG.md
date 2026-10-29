@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Moved per-root Vol Regime cache status, verification time, and refresh errors into its Data Table, including selected roots whose chart points are not ready.
+- Moved Vol Regime warmup and retention controls to a dedicated Cache Settings page in the sidebar navigation.
 - Cache job calendar dates and daily cleanup use configurable `OPTIONS_MONITOR_TIMEZONE`, defaulting to `America/Chicago` (Central Time).
 - Vol Regime now reads persistent historical IV/RR metrics while a bounded background worker refreshes revisioned CacheReader sources. Warmup lists and configurable 365-day retention persist in the shared SQLite database; daily cleanup retires expired metrics.
 - Historical cache migrations destructively rebuild legacy Vol Regime tables. Root metadata survives app restarts and refreshes on the shared worker.

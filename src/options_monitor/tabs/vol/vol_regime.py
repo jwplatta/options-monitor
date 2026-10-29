@@ -14,7 +14,6 @@ from options_monitor.calc.vol_regime import build_vol_regime_row, compute_atm_iv
 from options_monitor.charts.vol_regime import build_vol_regime_chart
 from options_monitor.data import vol_regime_jobs
 from options_monitor.data.cache_jobs import market_today
-from options_monitor.data.cache_settings_ui import render_cache_settings
 from options_monitor.data.reader import configure_duckdb_httpfs, get_reader
 from options_monitor.data.roots import available_roots
 
@@ -309,7 +308,6 @@ def _compute_vol_regime_data(
 def render_vol_regime_tab() -> None:
     """Render the Vol Regime subtab."""
     roots, roots_loaded = available_roots()
-    render_cache_settings(roots)
 
     # Streamlit's multiselect inserts a built-in "Select all" as its first
     # dropdown option. Hide that option only while this picker is open.
@@ -358,17 +356,10 @@ def render_vol_regime_tab() -> None:
         return
 
     jobs = vol_regime_jobs.runtime()
+    cache_states = {}
     for symbol in selected:
         jobs.request("vol_regime", symbol, {"target_dte": target_dte})
-        state = jobs.state("vol_regime", symbol, {"target_dte": target_dte})
-        st.caption(
-            f"{symbol}: historical cache {state.get('status', 'queued')} · "
-            f"last verified {state.get('completed_at') or 'not yet'}"
-        )
-        if state.get("last_error"):
-            st.warning(
-                f"{symbol}: refresh failed; showing last successful history. {state['last_error']}"
-            )
+        cache_states[symbol] = jobs.state("vol_regime", symbol, {"target_dte": target_dte})
     if lookback > jobs.retention("vol_regime"):
         st.warning("The requested lookback is truncated by the historical retention setting.")
     with st.spinner(f"Computing vol regime for {len(selected)} symbols..."):
@@ -384,6 +375,7 @@ def render_vol_regime_tab() -> None:
             "A percentile needs at least three archived snapshots within the lookback window. "
             "Try a longer lookback."
         )
+        _render_data_table(data, selected, cache_states)
         return
 
     fig = build_vol_regime_chart(data)
@@ -422,24 +414,20 @@ def render_vol_regime_tab() -> None:
             "Check each symbol's sample date in the data table."
         )
 
-    # Summary table
+    _render_data_table(data, selected, cache_states)
+
+
+def _render_data_table(
+    data: pd.DataFrame, selected: list[str], cache_states: dict[str, dict[str, str | None]]
+) -> None:
+    """Include cache details even for selected roots without a plotted point yet."""
+    table = data.set_index("symbol").reindex(selected)
+    table["cache_status"] = [cache_states[root].get("status", "queued") for root in selected]
+    table["cache_verified"] = [cache_states[root].get("completed_at") for root in selected]
+    table["cache_error"] = [cache_states[root].get("last_error") for root in selected]
     with st.expander("Data Table"):
-        columns = [
-            "iv_rank",
-            "rr_rank",
-            "current_iv",
-            "current_rr",
-            "sample_date",
-            "expiration_date",
-            "actual_dte",
-            "iv_history_count",
-            "rr_history_count",
-            "history_through",
-        ]
         st.dataframe(
-            data.set_index("symbol")[columns]
-            .round(2)
-            .rename(
+            table.round(2).rename(
                 columns={
                     "iv_rank": "ATM IV percentile",
                     "rr_rank": "25Δ RR percentile",
@@ -451,6 +439,9 @@ def render_vol_regime_tab() -> None:
                     "iv_history_count": "IV samples",
                     "rr_history_count": "RR samples",
                     "history_through": "History through",
+                    "cache_status": "Historical cache",
+                    "cache_verified": "Last verified (UTC)",
+                    "cache_error": "Cache refresh error",
                 }
             ),
             use_container_width=True,

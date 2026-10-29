@@ -89,3 +89,21 @@ def test_current_chain_is_loaded_again_on_each_calculation(
     assert second.iloc[0]["current_iv"] == 30.0
     assert reader.latest_snapshots.call_count == 2
     assert reader.load_intraday_snapshot.call_count == 2
+
+
+def test_data_table_includes_cache_status_for_unplotted_roots(monkeypatch) -> None:
+    from contextlib import nullcontext
+
+    tables = []
+    monkeypatch.setattr(vol_regime.st, "expander", lambda *args: nullcontext())
+    monkeypatch.setattr(vol_regime.st, "dataframe", lambda frame, **kwargs: tables.append(frame))
+    data = pd.DataFrame([{"symbol": "QQQ", "current_iv": 20.0}])
+    states = {
+        "QQQ": {"status": "ready", "completed_at": "2026-10-29T15:27:40+00:00"},
+        "SPY": {"status": "queued"},
+    }
+    vol_regime._render_data_table(data, ["QQQ", "SPY"], states)
+    assert list(tables[0].index) == ["QQQ", "SPY"]
+    assert tables[0].loc["QQQ", "Historical cache"] == "ready"
+    assert tables[0].loc["QQQ", "Last verified (UTC)"] == "2026-10-29T15:27:40+00:00"
+    assert tables[0].loc["SPY", "Historical cache"] == "queued"
