@@ -52,9 +52,10 @@ make dev-shared
 Fixed Strike, Vol Regime, and Volatility Skew share the embedded SQLite database
 `$OPTIONS_MONITOR_CACHE_DIR/options_monitor_cache.sqlite3`; there is no separate
 database container. The database and all cache tables are created on first use.
-Table schema versions and migrations are managed centrally in the app. Historical
-cache rows are source-validated and reused across app restarts; they do not expire
-by age. A changed source file or calculation version triggers recomputation where
+Current table definitions are managed centrally in the app. Incompatible caches
+are discarded and rebuilt without migrations. Historical
+cache rows are source-validated and reused across app restarts. Vol Regime retires
+rows using its configurable retention period. A changed source file or calculation version triggers recomputation where
 applicable. Vol Regime still checks the latest published intraday chain on each
 30-second refresh.
 
@@ -125,15 +126,15 @@ also runs after app downtime, and queries never rehydrate dates outside retentio
 Status and last successful verification are shown above the chart; old archive
 coverage is reported independently from refresh status.
 
-All cache schemas/migrations are centralized in `data/sqlite_cache.py`. Job
+All current cache schemas are centralized in `data/sqlite_cache.py`. Job
 registration defines validation, computation, cleanup, refresh frequency and
 warmup defaults. Vol Skew and Fixed Strike retain their existing caches until
-separate migrations. See [the implementation plan](docs/plans/vol-regime-cache-jobs.md)
+separate chart updates. See [the implementation plan](docs/plans/vol-regime-cache-jobs.md)
 for the schema and measurements.
 
 Dev defaults to `~/.cache/options-monitor-dev`, production keeps its existing cache
-path, and `OPTIONS_MONITOR_CACHE_DIR` overrides either. SQLite schema v2 destructively
-rebuilds the Vol Regime cache; its metrics are reconstructed in the background.
+path, and `OPTIONS_MONITOR_CACHE_DIR` overrides either. Incompatible SQLite caches are automatically rebuilt from current definitions,
+including saved settings. There are no schema versions or migration history.
 
 `OPTIONS_MONITOR_TIMEZONE` sets the timezone used for cache job calendar dates and
 daily retention cleanup. It defaults to `America/Chicago` (Central Time, including
