@@ -161,6 +161,15 @@ option_roots:
 - option_root: HYG
   underlying: HYG
   asset_class: etf
+- option_root: IAU
+  underlying: IAU
+  asset_class: etf
+- option_root: IBB
+  underlying: IBB
+  asset_class: etf
+- option_root: IBIT
+  underlying: IBIT
+  asset_class: etf
 - option_root: IBM
   underlying: IBM
   asset_class: equity
