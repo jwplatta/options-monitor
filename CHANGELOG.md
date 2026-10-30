@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### Changed
+- Moved risk-reversal and 25-delta IV interpolation into Options Monitor’s local calculation package; charts, workers, profilers, and tests now share that implementation.
+- Reuse a persistent, range-aware multi-root historical file inventory across Vol Regime symbol/DTE jobs, using merged Tractatus PR #41.
+- Added a read-only table of all configured option roots, underlyings, and asset classes to Settings.
+- Reconciled the root YAML with all 144 historical lakehouse roots, adding 57 entries and explicit index-underlying mappings, including NDX/NDXP → $NDX and XSP → $XSP.
+- Renamed Cache Settings to Settings. Supported roots and underlying mappings now come from committed YAML, which seeds an indexed `option_roots` table on database creation/reset and syncs on restart; removed remote root discovery.
+- Added frozen real SPXW chain regression tests for ATM IV, interpolated 25-delta call/put IVs, risk reversal, SQLite persistence, and historical percentiles without current-day leakage.
+- Removed manual calculation-version tracking from Vol Regime and shared cache jobs; formula changes require discarding the disposable cache. Remote source revision validation remains.
+- Replaced SQLite schema versions and migration history with current definitions; incompatible disposable caches are rebuilt automatically, including saved settings.
+- Settings has a shared warmup-list section for all chart jobs, initially empty; SPXW is no longer automatically warmed. Chart parameters remain separate.
+- Moved per-root Vol Regime cache status, verification time, and refresh errors into its Data Table, including selected roots whose chart points are not ready.
+- Moved Vol Regime warmup and retention controls to a dedicated Settings page in the sidebar navigation.
+- Cache job calendar dates and daily cleanup use configurable `OPTIONS_MONITOR_TIMEZONE`, defaulting to `America/Chicago` (Central Time).
+- Vol Regime now reads persistent historical IV/RR metrics while a bounded background worker refreshes revisioned CacheReader sources. Warmup lists and configurable 365-day retention persist in the shared SQLite database; daily cleanup retires expired metrics.
+- Historical cache migrations destructively rebuild legacy Vol Regime tables. Configured option roots are seeded locally from committed YAML.
 - Moved symbol selection from the sidebar into independent chart controls; Vol Regime retains its multi-symbol selector.
 - Simplified Vol subtabs to Fixed Strike Vol, Volatility Skew, and Vol Regime. Added a latest 30-DTE skew chart against a persistent historical 10th–90th percentile band.
 - Vol Regime now refreshes its current chain every 30 seconds and stores source-validated historical IV and risk-reversal observations in a separate persistent Options Monitor SQLite cache.

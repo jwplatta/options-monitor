@@ -1,43 +1,45 @@
-"""Background discovery of option roots for the dashboard selector."""
+"""Option-root selectors read the YAML-seeded local registry."""
 
-from __future__ import annotations
+import json
 
-from concurrent.futures import Future, ThreadPoolExecutor
-from threading import Lock
-from time import monotonic
+import pandas as pd
 
-from options_monitor.data.reader import get_reader
-
-_DEFAULT_ROOT = "SPXW"
-_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="option-roots")
-_lock = Lock()
-_future: Future[list[str]] | None = None
-_cached_roots = [_DEFAULT_ROOT]
-_has_loaded = False
-_last_refresh = 0.0
-_REFRESH_INTERVAL_SECONDS = 300
+from options_monitor.data.option_root_config import configured_namespace
+from options_monitor.data.sqlite_cache import connect_cache
 
 
 def available_roots() -> tuple[list[str], bool]:
-    """Return current roots and whether the MinIO lookup has finished."""
-    global _cached_roots, _future, _has_loaded, _last_refresh
-    with _lock:
-        now = monotonic()
-        if _future is not None and _future.done():
-            try:
-                roots = _future.result()
-            except Exception:
-                roots = []
-            if roots:
-                _cached_roots = roots
-            _has_loaded = True
-            _future = None
+    """Return configured roots synchronously; never discover symbols remotely."""
+    namespace, _ = configured_namespace()
+    conn = connect_cache()
+    try:
+        return [
+            row[0]
+            for row in conn.execute(
+                "SELECT option_root FROM option_roots WHERE namespace_id=? ORDER BY option_root",
+                (namespace,),
+            )
+        ], True
+    finally:
+        conn.close()
 
-        refresh_due = not _has_loaded or now - _last_refresh >= _REFRESH_INTERVAL_SECONDS
-        if _future is None and refresh_due:
-            _future = _executor.submit(lambda: get_reader().list_roots())
-            _last_refresh = now
 
-        roots = list(_cached_roots)
-        loaded = _has_loaded
-    return roots, loaded
+def available_root_details() -> pd.DataFrame:
+    """Read all configured root mappings for the active storage namespace."""
+    namespace, _ = configured_namespace()
+    conn = connect_cache()
+    try:
+        rows = conn.execute(
+            "SELECT option_root,underlying,metadata_json FROM option_roots "
+            "WHERE namespace_id=? ORDER BY option_root",
+            (namespace,),
+        ).fetchall()
+        return pd.DataFrame(
+            [
+                (root, underlying, json.loads(metadata).get("asset_class"))
+                for root, underlying, metadata in rows
+            ],
+            columns=["Option root", "Underlying", "Asset class"],
+        )
+    finally:
+        conn.close()

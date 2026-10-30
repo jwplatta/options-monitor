@@ -8,9 +8,10 @@ from options_monitor.tabs.flow import render_flow_tab
 from options_monitor.tabs.gex import render_gex_tab
 from options_monitor.tabs.history import render_history_tab
 from options_monitor.tabs.oi import render_oi_tab
+from options_monitor.tabs.settings import render_settings_page
 from options_monitor.tabs.vol import render_vol_tab
 
-_TOP_LEVEL_TABS = ["Vol", "GEX", "Flow", "OI", "History"]
+_TOP_LEVEL_TABS = ["Vol", "GEX", "Flow", "OI", "History", "Settings"]
 _TAB_SPINNER_MSG: dict[str, str] = {
     "Vol": "Loading Vol...",
     "GEX": "Loading GEX...",
@@ -36,6 +37,9 @@ def _render_active_dashboard_tab(active_tab: str) -> None:
         return
     if active_tab == "OI":
         render_oi_tab()
+        return
+    if active_tab == "Settings":
+        render_settings_page()
         return
     raise ValueError(f"Unknown dashboard tab: {active_tab}")
 

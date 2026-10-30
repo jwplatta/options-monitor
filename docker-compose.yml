@@ -48,6 +48,7 @@ services:
     environment:
       TRACTATUS_CACHE_DIR: /root/.tractatus/cache
       OPTIONS_MONITOR_CACHE_DIR: /root/.cache/options-monitor
+      OPTIONS_MONITOR_TIMEZONE: "${OPTIONS_MONITOR_TIMEZONE:-America/Chicago}"
       MINIO_ENDPOINT: "http://minio:9000"
       MINIO_INTRADAY_BUCKET: "${MINIO_INTRADAY_BUCKET:-tickrake-intraday}"
       MINIO_HISTORICAL_BUCKET: "${MINIO_HISTORICAL_BUCKET:-tickrake-historical}"

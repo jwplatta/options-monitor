@@ -52,9 +52,10 @@ make dev-shared
 Fixed Strike, Vol Regime, and Volatility Skew share the embedded SQLite database
 `$OPTIONS_MONITOR_CACHE_DIR/options_monitor_cache.sqlite3`; there is no separate
 database container. The database and all cache tables are created on first use.
-Table schema versions and migrations are managed centrally in the app. Historical
-cache rows are source-validated and reused across app restarts; they do not expire
-by age. A changed source file or calculation version triggers recomputation where
+Current table definitions are managed centrally in the app. Incompatible caches
+are discarded and rebuilt without migrations. Historical
+cache rows are source-validated and reused across app restarts. Vol Regime retires
+rows using its configurable retention period. A changed source file or calculation version triggers recomputation where
 applicable. Vol Regime still checks the latest published intraday chain on each
 30-second refresh.
 
@@ -110,3 +111,91 @@ src/options_monitor/
 ├── charts/             # Plotly figure builders
 └── tabs/               # Streamlit tab renderers (gex, flow, oi, vol/*, history)
 ```
+
+## Historical chart caches
+
+Vol Regime stores calculated daily ATM IV and risk reversal in the shared Options
+Monitor SQLite cache. A single in-process worker refreshes historical data through
+Tractatus CacheReader, while chart requests reuse prior successful observations.
+Symbols selected on demand are cached without joining the warmup list.
+
+The sidebar **Settings** page saves one shared warmup list for all chart jobs,
+initially empty. Its Vol Regime section saves target DTE and retention separately
+in SQLite. Retention defaults to 365 calendar days. Daily cleanup
+also runs after app downtime, and queries never rehydrate dates outside retention.
+Status and last successful verification are shown above the chart; old archive
+coverage is reported independently from refresh status.
+
+All current cache schemas are centralized in `data/sqlite_cache.py`. Job
+registration defines validation, computation, cleanup, refresh frequency and
+warmup defaults. Vol Skew and Fixed Strike retain their existing caches until
+separate chart updates. See [the implementation plan](docs/plans/vol-regime-cache-jobs.md)
+for the schema and measurements.
+
+Dev defaults to `~/.cache/options-monitor-dev`, production keeps its existing cache
+path, and `OPTIONS_MONITOR_CACHE_DIR` overrides either. Incompatible SQLite caches are automatically rebuilt from current definitions,
+including saved settings. There are no schema versions or migration history.
+
+`OPTIONS_MONITOR_TIMEZONE` sets the timezone used for cache job calendar dates and
+daily retention cleanup. It defaults to `America/Chicago` (Central Time, including
+daylight saving changes). Set it to another IANA timezone to override it. Persisted
+job timestamps remain UTC; historical chain sampling remains at 10:30 New York time.
+
+Vol Regime and the shared job framework do not track calculation versions. When
+changing metric formulas or snapshot selection without changing the schema, stop
+the app and discard its cache database (including SQLite WAL/SHM files) before
+restarting to recompute results. Source-object revision changes still trigger
+automatic refreshes. Skew and Fixed Strike retain their existing implementation
+until their separate cache updates.
+
+After changing cache schemas or worker code during development, restart the dev
+container: Streamlit hot reload can leave existing background threads executing
+older code. Option-root dropdowns are seeded locally from committed YAML;
+no bucket discovery or root-refresh job runs.
+
+### Option root registry
+
+Supported roots are defined in [`src/options_monitor/config/option_roots.yaml`](src/options_monitor/config/option_roots.yaml):
+
+```yaml
+option_roots:
+  - option_root: SPXW
+    underlying: $SPX
+    asset_class: index
+  - option_root: QQQ
+    underlying: QQQ
+    asset_class: etf
+```
+
+Edit and commit this file, then restart the app to add or change supported roots.
+The packaged YAML is validated and seeds the indexed `option_roots` table whenever
+SQLite is created or rebuilt. Restarting also syncs config edits into an existing
+database: existing rows are upserted, removed YAML roots leave the registry, and
+unchanged rows retain their timestamp. There are no MinIO root scans or refresh
+buttons. The **Settings** page points to the configuration file.
+
+`option_root` and `underlying` are required, nonempty strings; duplicate roots are
+rejected. Additional JSON-compatible YAML fields are retained in each row's
+`metadata_json`. Each row also stores `namespace_id`, `refreshed_at` (configuration
+sync time), and nullable `last_error`. The registry includes all 144 historical roots found in tractatus-lakehouse on
+2026-10-29, plus 3 previously configured roots without historical objects.
+Index underlying mappings match Tractatus normalization. The app does not scan
+the bucket or read another repo at runtime.
+
+The supported-root registry is separate from the shared warmup list. Configuring
+a root makes it selectable; only roots selected in the warmup list run recurring
+historical jobs. A reset clears user settings but repopulates configured roots.
+
+### Shared historical file inventory
+
+Vol Regime uses Tractatus's multi-root discovery API to discover source files for
+its warmup list and queued symbols together. The inventory is stored in
+`cache_sources`; `cache_source_scans` records each root's successfully checked date
+range and refresh time, including roots with no files. Symbol and DTE jobs reuse
+this inventory for fifteen minutes. New roots, wider ranges, a new calendar day,
+or expiry of that interval trigger discovery for missing/stale coverage.
+Discovery failures preserve the previous inventory. Observation retention cleanup
+does not delete this shared inventory; the next successful scan replaces its range.
+
+Settings displays every configured option root with its underlying and asset class
+in a read-only table. These are YAML-configured roots, not a live bucket listing.

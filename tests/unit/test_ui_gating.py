@@ -454,3 +454,12 @@ def test_render_gex_tab_has_own_symbol_selector(monkeypatch, tmp_path: Path) -> 
     gamma_map.render_gex_tab()
 
     assert "Symbol" in selectbox_labels
+
+
+def test_cache_settings_router_does_not_render_charts(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(app, "render_settings_page", lambda: calls.append("settings"))
+    monkeypatch.setattr(app, "render_vol_tab", lambda: calls.append("vol"))
+    app._render_active_dashboard_tab("Settings")
+    assert calls == ["settings"]
+    assert "Settings" in app._TOP_LEVEL_TABS

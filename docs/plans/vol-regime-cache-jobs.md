@@ -1,0 +1,115 @@
+---
+date_created: 2026-10-28
+description: Dashboard cache implementation and current option-root configuration design.
+---
+
+# Dashboard cache and configuration plan
+
+## Pull requests
+1. Independent chart symbol selectors (merged #32).
+2. Shared cache/job infrastructure and Vol Regime (PR #33); Tractatus API prerequisite #39.
+3. Vol Skew using the same cache/job pattern.
+4. Fixed Strike Vol with measured incremental aggregation.
+
+## Root registry and settings
+- The committed `src/options_monitor/config/option_roots.yaml` is the supported-root source of truth. Each entry requires option_root and underlying; additional JSON-compatible fields become per-row metadata.
+- The SQLite option_roots table has option_root, underlying, namespace_id, refreshed_at, last_error and metadata_json; PK(namespace_id,option_root), index(option_root).
+- Seed after database creation/reset, and sync on restart. Upsert changed entries and remove entries deleted from YAML; unchanged rows keep timestamps. Validate before touching existing caches. Never scan MinIO for roots; no refresh button or root job.
+- Registry reconciled against the 2026-10-29 historical bucket inventory; index underlying mappings match Tractatus normalization. It is packaged with the app, not read from another repo at runtime.
+- Sidebar page is Settings. A separate shared warmup list is persisted in SQLite, initially empty; each chart job uses that list and its own parameters. Configured roots are not automatically warmed.
+
+## Historical cache contract
+- Use Tractatus CacheReader for historical source inventories/revisions and projected reads from tractatus-lakehouse. This remains independent of configured-root discovery.
+- Store computed ATM IV and 25-delta risk reversal per selected daily snapshot, not option chains. Each day selects its nearest target-DTE expiry, first sample at/after 10:30 New York, and closing sample; deduplicate identical timestamps.
+- Bulk-read historical metric ranges from SQLite, excluding the current comparison day. Reuse sorted distributions in memory and compare with fresh intraday metrics. Preserve the recent archived-close fallback.
+- Namespace by endpoint/bucket/provider and invalidate source replacements using ETag/size revisions. No manual calculation versions: reset the cache after formula/sampling changes.
+- All current table/index definitions live in data/sqlite_cache.py. No migrations or schema versions. Incompatible schemas atomically rebuild the disposable database, including saved settings; configured roots are seeded again automatically.
+
+## Jobs and retirement
+- One bounded in-process worker owns task-local reader/query connections. Deduplicate requests, prioritize user work, persist status/retries, and recover interrupted jobs.
+- Warmup and non-watchlist requests use the same daily metrics. On-demand requests do not join the shared warmup list.
+- Historical refresh interval: fifteen minutes. Retry failures from 30 seconds with exponential backoff capped at fifteen minutes. Retain the last successful data on failure.
+- Default retention: 365 calendar days, configurable for each chart. Daily cleanup plus startup catch-up removes strictly older observations, cascades dependencies, and invalidates distributions. Honor retention during reads and refresh to prevent rehydrating expired data.
+- Calendar-date timezone: OPTIONS_MONITOR_TIMEZONE, default America/Chicago. Persist timestamps in UTC. Snapshot selection remains 10:30 New York.
+
+## Validation and measurements
+- Test root YAML validation, metadata preservation, seeding after reset, restart config edits/removals, namespace separation, packaged YAML and local dropdowns.
+- Test real metric correctness, revision changes, valid empty days, request deduplication/priority, retries/restart, cleanup boundaries, schema rebuild and concurrent initialization.
+- Frozen real SPXW fixture: 45 rows, four dates, eight snapshots. Fixed Decimal reference values cover ATM IV, both 25-delta IVs, RR and cached percentiles excluding the current day.
+- Live 30-day / 12-session measurements: SPXW cold compute 3.400 s, unchanged refresh 0.815 s, SQLite range 0.192 ms; TSLA 1.171 s / 0.833 s / 0.129 ms. Both produced 24 IV and 24 RR observations. In-memory distribution lookups averaged about 0.004 ms.
+- Timings exclude live reads/rendering and are not a multi-user guarantee. Source history ended October 16; coverage is independently warned about. Warm history must perform no synchronous historical remote scans; initial local target is under 100 ms per symbol.
+- Dev cache defaults to ~/.cache/options-monitor-dev; production keeps its separate path. Restart dev after worker/schema changes to stop old hot-reloaded threads. Production services were not restarted.
+
+## Historical bucket root reconciliation (2026-10-29)
+
+One-time CacheReader listing of tractatus-lakehouse, schwab provider: 144 roots. All are now explicitly configured in YAML. Index mappings were checked against Tractatus normalization. Existing configured roots without historical objects were retained: ANSS, DAY, GOOGLE. Runtime still uses only committed YAML and does not scan the bucket.
+
+```text
+AAPL ACN ADBE ADI ADP ADSK AMAT AMD AMZN ANET ARKK ARM ASTS AVGO BAC CAT CDNS CLSK COIN COST
+CRM CRWD CRWV CSCO CVNA CVX DELL DIA DJX DJXW DKNG DRAM DXC EEM EFA EPAM FICO FTNT FXI GEN GLD
+GME GOOG GOOGL GPN HD HOOD HPE HPQ HYG IBM IEF IJR INTC INTU IT ITA IWD IWF IWM JNK JPM KLAC
+KRE LLY LQD LRCX MA MARA MCHP MDY META MPWR MRVL MSCI MSFT MSTR MU NDX NDXP NFLX NOW NTAP NVDA
+NXPI ON ORCL PANW PAYC PAYX PLTR PYPL QCOM QQQ RBLX RIVN RSP RUT RUTW SBUX SCHW SHY SLV SMCI
+SMH SNAP SNPS SOFI SOXL SPCX SPX SPXW SPY STX SWKS TAN TER TIP TLT TSLA TXN UBER UNH V VIX VIXW
+WDC WMT XBI XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY XOM XOP XRT XSP
+```
+
+## Selection versus calculation profile (2026-10-29)
+
+Ran `scripts/profile_vol_regime.py --days 60 --repeats 2` inside dev, using a fresh
+SQLite file per symbol/run. Both symbols had 31 historical dates and 62 selected
+snapshots, through October 16. Server, object and filesystem caches were not
+cleared. Raw timings, including each date, are in
+`benchmarks/vol-regime-stages-2026-10-29.json`.
+
+| Symbol / run | File discovery | Daily chain selection | IV/RR calculation | SQLite writes | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| SPXW / 1 | 8.692 s | 7.143 s | 0.356 s | 0.055 s | 16.517 s |
+| SPXW / 2 | 3.329 s | 5.607 s | 0.306 s | 0.038 s | 9.698 s |
+| TSLA / 1 | 3.371 s | 0.943 s | 0.303 s | 0.068 s | 4.836 s |
+| TSLA / 2 | 3.127 s | 1.167 s | 0.309 s | 0.154 s | 4.893 s |
+
+Selection includes remote Parquet access, DuckDB nearest-DTE/selected-time queries,
+and DataFrame materialization. Calculation includes pandas grouping and all IV/RR
+math. Total additionally includes reader/SQLite/query setup, teardown and other
+loop overhead. Timings exclude current intraday reads, percentiles and plotting.
+The benchmark uses 60 days of history; normal warmup uses configured retention.
+
+Calculation was about 2–3% of total SPXW time and 6% of TSLA time in these runs.
+Even eliminating all arithmetic would therefore save only about 0.3 seconds per
+symbol over this window. Prioritize reusing/batching historical file inventories,
+then batching selection, before vectorizing the calculation. No production query
+or calculation behavior was changed for this measurement.
+
+Repeat with a new isolated directory:
+
+```sh
+python scripts/profile_vol_regime.py --symbols SPXW TSLA --days 60 --repeats 2 \
+  --cache-dir /tmp/vol-regime-profile-fresh --output /tmp/vol-regime-profile.json
+```
+
+## Shared multi-root inventory implementation
+
+Pinned merged Tractatus PR #41 (`4a9229103462036f747514163fdd0a36cc5eb62a`).
+`SourceInventory` batches warmup and queued roots through discover_option_sources.
+`cache_source_scans(namespace_id,root,after_date,before_date,refreshed_at)` tracks
+successful range coverage, including empty roots; primary key namespace/root.
+Descriptors remain in cache_sources. Other symbols/DTEs reuse the persisted
+inventory until it is fifteen minutes old or lacks the requested date coverage.
+Failed discovery does not replace prior rows. Per-chart observation cleanup no
+longer deletes the shared file inventory.
+
+Live 60-calendar-day discovery-only comparison for SPY, QQQ, IWM, INTC, MRVL:
+31 sources per root, 155 sources total, identical source descriptors in both paths.
+Separate per-root discovery: **12.554 s**; shared initial discovery plus SQLite
+persistence: **3.950 s**, a **3.18×** speedup. Five subsequent per-root cached
+lookups: **0.00449 s total**. This single paired run did not clear MinIO/OS caches
+and does not establish end-to-end warmup speedup. Chain selection/calculation was
+unchanged. Raw results: `benchmarks/shared-inventory-2026-10-29.json`;
+repeatable script: `scripts/benchmark_source_inventory.py`.
+
+Settings now displays all configured root/underlying/asset-class mappings in a
+read-only table. A Streamlit rendering test checks the full row count and index
+underlying mappings.
+
+Risk-reversal calculation ownership: options_monitor.calc.risk_reversal now owns the result type, 25-delta IV/strike interpolation and RR calculation. Workers, charts and profiling scripts use the same local implementation; real-market reference tests validate it independently. Tractatus remains the data-access interface. Existing cached metrics remain compatible because finite-input interpolation semantics are preserved.

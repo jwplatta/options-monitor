@@ -1,6 +1,3 @@
-# TODO: Extract pure calc functions to tractatus.calc.vol_regime
-# These functions are intentionally free of I/O and Streamlit dependencies
-# so they can move to the tractatus shared library later.
 """Vol regime percentile-rank computation for IV and risk reversal."""
 
 from __future__ import annotations
